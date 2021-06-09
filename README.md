@@ -43,6 +43,13 @@ class MoviesAPI extends RESTDataSource {
     this.baseURL = "https://movies-api.example.com";
   }
 
+  cacheKey() {}
+
+  // lifecycle hooks for logging, tracing and request manipulation
+  didEncounterError() {}
+  async willSendRequest() {}
+  async didReceiveResponse() {}
+
   async getMovie(id) {
     return this.get(`/movies/${id}`, {
       headers: {

@@ -1,5 +1,5 @@
 {
-  "name": "apollo-datasource-rest",
+  "name": "@starptech/apollo-datasource-rest",
   "version": "0.0.0",
   "author": "Dustin Deus <deusdustin@gmail.com>",
   "license": "MIT",
@@ -17,7 +17,8 @@
     "lint:fix": "xo --fix",
     "cov": "nyc --reporter=lcov --reporter=text-summary -- npm run test",
     "test": "ava",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "release": "release-it --github.release"
   },
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
@@ -70,6 +71,7 @@
     "keyv": "^4.0.3"
   },
   "devDependencies": {
+    "release-it": "^14.8.0",
     "ava": "^3.15.0",
     "nock": "^13.1.0",
     "nyc": "^15.1.0",
