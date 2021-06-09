@@ -44,8 +44,7 @@ class MoviesAPI extends RESTDataSource {
   }
 
   async getMovie(id) {
-    return this.get({
-      path: `/movies/${id}`,
+    return this.get(`/movies/${id}`, {
       headers: {
         "X-Foo": "bar",
       },
