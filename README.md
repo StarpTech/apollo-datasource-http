@@ -5,10 +5,10 @@
 Optimized REST Data Source for Apollo Server
 
 - Optimized for JSON REST
-- HTTP/1 [Keep-alive agents](https://github.com/node-modules/agentkeepalive) for socket reuse.
+- HTTP/1 [Keep-alive agents](https://github.com/node-modules/agentkeepalive) for socket reuse
 - HTTP/2 support (requires Node.js 15.10.0 or newer)
 - Uses [Got](https://github.com/sindresorhus/got) a modern HTTP Client shipped with RFC 7234 compliant HTTP caching
-- LRU Cache with ttl to memoize GET requests within the same graphql request (cache key is the full url but can be overwitten)
+- LRU Cache with ttl to memoize GET requests within the same graphql request
 - Support for [Apollo Cache Storage backend](https://www.apollographql.com/docs/apollo-server/data/data-sources/#using-memcachedredis-as-a-cache-storage-backend)
 
 ## Documentation
