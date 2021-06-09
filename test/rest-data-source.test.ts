@@ -400,3 +400,140 @@ test('Response is not cached', async (t) => {
 	t.false(response.isFromCache);
 	t.deepEqual(response.body, {name: 'foo'});
 });
+
+test('Response is not cached due to origin error', async (t) => {
+	const baseURL = 'https://api.example.com';
+	const {path} = t.context;
+	const scopeSuccess = nock(baseURL).get(path).once().reply(
+		200,
+		{name: 'foo'},
+		{
+			'Cache-Control': 'public, max-age=0'
+		}
+	);
+
+	let dataSource = new (class extends RESTDataSource {
+		baseURL = baseURL;
+
+		async getFoo() {
+			return this.get(path, {
+				cacheOptions: {
+					shared: true,
+					cacheHeuristic: 0.1,
+					immutableMinTimeToLive: 24 * 3600 * 1000, // 24h
+					ignoreCargoCult: false
+				}
+			});
+		}
+	})();
+
+	const map = new Map<string, string>();
+
+	const config: DataSourceConfig<Record<string, unknown>> = {
+		context: {},
+		cache: {
+			async delete(key: string) {
+				return map.delete(key);
+			},
+			async get(key: string) {
+				return map.get(key);
+			},
+			async set(key: string, value: string) {
+				map.set(key, value);
+			}
+		}
+	};
+
+	dataSource.initialize(config);
+
+	const response = await dataSource.getFoo();
+
+	t.is(scopeSuccess.isDone(), true);
+	t.false(response.isFromCache);
+	t.deepEqual(response.body, {name: 'foo'});
+	t.true(map.size > 0);
+
+	dataSource = new (class extends RESTDataSource {
+		baseURL = baseURL;
+
+		async getFoo() {
+			return this.get(path);
+		}
+	})();
+
+	dataSource.initialize(config);
+
+	const scopeError = nock(baseURL).get(path).once().reply(500);
+
+	await t.throwsAsync(
+		dataSource.getFoo(),
+		{
+			message: 'Response code 500 (Internal Server Error)'
+		},
+		'message'
+	);
+	t.is(scopeError.isDone(), true);
+	t.false(response.isFromCache);
+});
+
+test('Response is cached due to stale-if-error', async (t) => {
+	const baseURL = 'https://api.example.com';
+	const {path} = t.context;
+	const scopeSuccess = nock(baseURL).get(path).once().reply(
+		200,
+		{name: 'foo'},
+		{
+			'Cache-Control': 'public, max-age=0, stale-if-error=200'
+		}
+	);
+	const scopeError = nock(baseURL).get(path).once().reply(500);
+
+	let dataSource = new (class extends RESTDataSource {
+		baseURL = baseURL;
+
+		async getFoo() {
+			return this.get(path);
+		}
+	})();
+
+	const map = new Map<string, string>();
+
+	const config: DataSourceConfig<Record<string, unknown>> = {
+		context: {},
+		cache: {
+			async delete(key: string) {
+				return map.delete(key);
+			},
+			async get(key: string) {
+				return map.get(key);
+			},
+			async set(key: string, value: string) {
+				map.set(key, value);
+			}
+		}
+	};
+
+	dataSource.initialize(config);
+
+	let response = await dataSource.getFoo();
+
+	t.is(scopeSuccess.isDone(), true);
+	t.false(response.isFromCache);
+	t.deepEqual(response.body, {name: 'foo'});
+	t.true(map.size > 0);
+
+	dataSource = new (class extends RESTDataSource {
+		baseURL = baseURL;
+
+		async getFoo() {
+			return this.get(path);
+		}
+	})();
+
+	dataSource.initialize(config);
+
+	response = await dataSource.getFoo();
+	t.is(scopeError.isDone(), true);
+	t.true(response.isFromCache);
+	t.deepEqual(response.body, {name: 'foo'});
+});
