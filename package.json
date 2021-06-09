@@ -1,5 +1,5 @@
 {
-  "name": "@starptech/apollo-datasource-rest",
+  "name": "apollo-ds-rest",
   "version": "0.0.0",
   "author": "Dustin Deus <deusdustin@gmail.com>",
   "license": "MIT",
