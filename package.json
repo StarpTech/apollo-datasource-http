@@ -1,0 +1,35 @@
+{
+  "name": "apollo-datasource-rest",
+  "version": "0.0.0",
+  "author": "Dustin Deus <deusdustin@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/StarpTech/apollo-datasource-rest"
+  },
+  "homepage": "https://github.com/StarpTech/apollo-datasource-rest#readme",
+  "bugs": {
+    "url": "https://github.com/StarpTech/apollo-datasource-rest/issues"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "engines": {
+    "node": ">=15"
+  },
+  "dependencies": {
+    "@alloc/quick-lru": "^5.2.0",
+    "agentkeepalive": "^4.1.4",
+    "apollo-datasource": "^0.9.0",
+    "apollo-server-caching": "^0.7.0",
+    "apollo-server-errors": "^2.5.0",
+    "got": "^11.8.2",
+    "graphql": "^15.5.0",
+    "keyv": "^4.0.3"
+  },
+  "devDependencies": {
+    "typescript": "^4.3.2"
+  }
+}
