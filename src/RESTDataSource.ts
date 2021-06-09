@@ -55,8 +55,12 @@ export abstract class RESTDataSource<TContext = any> extends DataSource {
   constructor(private globalRequestOpts?: OptionsOfJSONResponseBody) {
     super();
     this.agents = {
-      http: new HttpAgent(),
-      https: new HttpsAgent(),
+      http: new HttpAgent({
+        scheduling: "lifo"
+      }),
+      https: new HttpsAgent({
+        scheduling: "lifo"
+      }),
     };
   }
 
