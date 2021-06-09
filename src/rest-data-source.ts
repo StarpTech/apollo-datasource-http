@@ -183,7 +183,7 @@ export abstract class RESTDataSource<TContext = any> extends DataSource {
 			this.didEncounterError(error);
 
 			if (error instanceof HTTPError) {
-				if (error.response.statusCode === 401) {					
+				if (error.response.statusCode === 401) {
 					error_ = new AuthenticationError(error.message);
 				} else if (error.response.statusCode === 403) {
 					error_ = new ForbiddenError(error.message);

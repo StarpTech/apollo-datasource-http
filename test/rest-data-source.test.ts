@@ -1,8 +1,12 @@
-import {ApolloError, AuthenticationError, ForbiddenError} from 'apollo-server-errors';
+import {
+	ApolloError,
+	AuthenticationError,
+	ForbiddenError
+} from 'apollo-server-errors';
 import test from 'ava';
-import { TimeoutError } from 'got';
+import {TimeoutError} from 'got';
 import nock from 'nock';
-import {RESTDataSource} from '../src';
+import {Request, RESTDataSource} from '../src';
 
 test.serial('Should be able to make a simple GET call', async (t) => {
 	const baseURL = 'https://api.example.com';
@@ -92,27 +96,30 @@ test.serial('Should error with ForbiddenError', async (t) => {
 	t.is(scope.isDone(), true);
 });
 
-test.serial('Should cache subsequent GET calls to the same endpoint', async (t) => {
-	const baseURL = 'https://api.example.com';
-	const path = '/foo';
-	const scope = nock(baseURL).get(path).times(1).reply(200, {name: 'foo'});
+test.serial(
+	'Should cache subsequent GET calls to the same endpoint',
+	async (t) => {
+		const baseURL = 'https://api.example.com';
+		const path = '/foo';
+		const scope = nock(baseURL).get(path).times(1).reply(200, {name: 'foo'});
 
-	const dataSource = new (class extends RESTDataSource {
-		baseURL = baseURL;
+		const dataSource = new (class extends RESTDataSource {
+			baseURL = baseURL;
 
-		async getFoo() {
-			return this.get(path);
-		}
-	})();
+			async getFoo() {
+				return this.get(path);
+			}
+		})();
 
-	let response = await dataSource.getFoo();
-	t.deepEqual(response.body, {name: 'foo'});
+		let response = await dataSource.getFoo();
+		t.deepEqual(response.body, {name: 'foo'});
 
-	response = await dataSource.getFoo();
-	t.deepEqual(response.body, {name: 'foo'});
+		response = await dataSource.getFoo();
+		t.deepEqual(response.body, {name: 'foo'});
 
-	t.is(scope.isDone(), true);
-});
+		t.is(scope.isDone(), true);
+	}
+);
 
 test.serial('Should timeout', async (t) => {
 	const baseURL = 'https://api.example.com';
@@ -125,7 +132,7 @@ test.serial('Should timeout', async (t) => {
 		constructor() {
 			super({
 				timeout: 100
-			})
+			});
 		}
 
 		async getFoo() {
@@ -137,10 +144,44 @@ test.serial('Should timeout', async (t) => {
 		dataSource.getFoo(),
 		{
 			instanceOf: TimeoutError,
-			message: 'Timeout awaiting \'request\' for 100ms'
+			message: "Timeout awaiting 'request' for 100ms"
 		},
 		'Timeout'
 	);
 
 	t.is(scope.isDone(), true);
 });
+
+test.serial(
+	'Should be able to modify request in willSendRequest',
+	async (t) => {
+		const baseURL = 'https://api.example.com';
+		const path = '/foo';
+		const scope = nock(baseURL, {
+			reqheaders: {
+				'X-Foo': 'bar'
+			}
+		})
+			.get(path)
+			.reply(200, {name: 'foo'});
+
+		const dataSource = new (class extends RESTDataSource {
+			baseURL = baseURL;
+
+			async willSendRequest(request: Request) {
+				request.headers = {
+					'X-Foo': 'bar'
+				};
+			}
+
+			async getFoo() {
+				return this.get(path);
+			}
+		})();
+
+		const response = await dataSource.getFoo();
+
+		t.is(scope.isDone(), true);
+		t.deepEqual(response.body, {name: 'foo'});
+	}
+);
