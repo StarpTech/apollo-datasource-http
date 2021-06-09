@@ -12,12 +12,51 @@
     "url": "https://github.com/StarpTech/apollo-datasource-rest/issues"
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "lint": "xo",
+    "lint:fix": "xo --fix",
+    "test": "ava",
+    "prepare": "npm run build"
   },
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "engines": {
-    "node": ">=15"
+    "node": ">=14"
+  },
+  "files": [
+    "dist/src"
+  ],
+  "sideEffects": false,
+  "xo": {
+    "prettier": true,
+    "rules": {
+      "@typescript-eslint/no-empty-function": "off",
+      "node/no-deprecated-api": "off",
+      "node/prefer-global/url": "off",
+      "node/prefer-global/url-search-params": "off",
+      "@typescript-eslint/no-implicit-any-catch": "off",
+      "unicorn/prefer-node-protocol": "off",
+      "ava/assertion-arguments": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-non-null-assertion": "off",
+      "import/order": "off"
+    }
+  },
+  "ava": {
+    "files": [
+      "test/*"
+    ],
+    "extensions": [
+      "ts"
+    ],
+    "timeout": "10s",
+    "require": [
+      "ts-node/register"
+    ]
   },
   "dependencies": {
     "@alloc/quick-lru": "^5.2.0",
@@ -30,6 +69,10 @@
     "keyv": "^4.0.3"
   },
   "devDependencies": {
-    "typescript": "^4.3.2"
+    "ava": "^3.15.0",
+    "nock": "^13.1.0",
+    "ts-node": "^10.0.0",
+    "typescript": "^4.3.2",
+    "xo": "^0.40.2"
   }
 }

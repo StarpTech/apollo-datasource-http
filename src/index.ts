@@ -1,2 +1,2 @@
-export { RESTDataSource, Request } from './RESTDataSource';
-export { Response } from "got";
+export {RESTDataSource, Request} from './rest-data-source';
+export {Response} from 'got';

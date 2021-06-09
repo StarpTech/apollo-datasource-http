@@ -2,7 +2,7 @@
   "compilerOptions": {
     "outDir": "dist",
     "composite": true,
-    "target": "ESNext",
+    "target": "es2020", // Node.js 14
     "module": "commonjs",
     "moduleResolution": "node",
     "esModuleInterop": true,
@@ -18,9 +18,7 @@
     "noUnusedLocals": true,
     "forceConsistentCasingInFileNames": true,
     "lib": ["esnext"],
-    "baseUrl": ".",
-    "paths": {
-      "*" : ["types/*"]
-    }
-  }
+    "baseUrl": "."
+  },
+  "include": ["src", "test"]
 }

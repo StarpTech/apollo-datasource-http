@@ -38,12 +38,12 @@ class MoviesAPI extends RESTDataSource {
         "X-Client": "client",
       },
     });
-    this.baseURL = "https://movies-api.example.com/";
+    this.baseURL = "https://movies-api.example.com";
   }
 
   async getMovie(id) {
     return this.get({
-      path: `movies/${id}`,
+      path: `/movies/${id}`,
       headers: {
         "X-Foo": "bar",
       },
