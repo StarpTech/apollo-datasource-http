@@ -88,7 +88,7 @@ export abstract class RESTDataSource<TContext = any> extends DataSource {
 
 	protected cacheKey(request: Request): string {
 		if (request.url) return request.url.toString();
-		throw new Error('Cache key could not be build. No url or path was passed');
+		throw new Error('No Cache key provided');
 	}
 
 	protected willSendRequest?(request?: Request): Promise<void>;
@@ -162,8 +162,6 @@ export abstract class RESTDataSource<TContext = any> extends DataSource {
 			if (options.method === 'GET') {
 				const response = this.memoizedResults.get(cacheKey);
 				if (response) return response;
-			} else {
-				this.memoizedResults.delete(cacheKey);
 			}
 
 			if (this.willSendRequest) {
