@@ -25,18 +25,22 @@ To define a data source, extend the [`RESTDataSource`](https://github.com/apollo
 
 Your implementation of these methods can call on convenience methods built into the [RESTDataSource](./src/RESTDataSource.ts) class to perform HTTP requests, while making it easy to build up query, header, caching parameters, parse JSON results, and handle errors.
 
-```javascript
-const { RESTDataSource } = require('apollo-datasource-rest');
+```ts
+const { RESTDataSource } = require("@starptech/apollo-datasource-rest");
 
 class MoviesAPI extends RESTDataSource {
   constructor() {
-    super();
-    this.baseURL = 'https://movies-api.example.com/';
+    // global client options
+    super({
+      timeout: 2000,
+      http2: true,
+    });
+    this.baseURL = "https://movies-api.example.com/";
   }
 
   async getMovie(id) {
     return this.get({
-      path: `movies/${id}`
+      path: `movies/${id}`,
     });
   }
 }

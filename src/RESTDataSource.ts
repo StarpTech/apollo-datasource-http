@@ -86,7 +86,6 @@ export abstract class RESTDataSource<TContext = any> extends DataSource {
         `${this.baseURL}${request.path}`,
         {
           cache: this.storageAdapter,
-          http2: true,
           responseType: "json",
           timeout: 5000,
           agent: this.agents,
