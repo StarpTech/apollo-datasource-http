@@ -1,5 +1,7 @@
 # Apollo REST Data Source
 
+[![CI](https://github.com/StarpTech/apollo-datasource-rest/actions/workflows/ci.yml/badge.svg)](https://github.com/StarpTech/apollo-datasource-rest/actions/workflows/ci.yml)
+
 Optimized REST Data Source for Apollo Server
 
 - Optimized for JSON REST
