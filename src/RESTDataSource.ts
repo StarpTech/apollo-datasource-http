@@ -56,10 +56,12 @@ export abstract class RESTDataSource<TContext = any> extends DataSource {
     super();
     this.agents = {
       http: new HttpAgent({
-        scheduling: "lifo"
+        keepAlive: true,
+        scheduling: "lifo",
       }),
       https: new HttpsAgent({
-        scheduling: "lifo"
+        keepAlive: true,
+        scheduling: "lifo",
       }),
     };
   }
