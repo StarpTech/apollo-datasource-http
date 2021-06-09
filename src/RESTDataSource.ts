@@ -16,9 +16,31 @@ import {
   AuthenticationError,
   ForbiddenError,
 } from "apollo-server-errors";
-import Keyv from "keyv";
+import Keyv, { Store } from "keyv";
+import { KeyValueCache } from "apollo-server-caching";
 
 export type Request = OptionsOfJSONResponseBody;
+
+function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
+  return {
+    get(key: string) {
+      return cache.get(key);
+    },
+    clear() {},
+    async delete(key: string) {
+      const result = await cache.delete(key);
+      if (result === false) {
+        return false;
+      }
+      return true;
+    },
+    set(key: string, value: string, ttl?: number) {
+      return cache.set(key, value, {
+        ttl,
+      });
+    },
+  };
+}
 
 export abstract class RESTDataSource<TContext = any> extends DataSource {
   public baseURL?: string;
@@ -30,7 +52,7 @@ export abstract class RESTDataSource<TContext = any> extends DataSource {
   });
   private agents!: Agents;
 
-  constructor(private requestOpts?: OptionsOfJSONResponseBody) {
+  constructor(private globalRequestOpts?: OptionsOfJSONResponseBody) {
     super();
     this.agents = {
       http: new HttpAgent(),
@@ -40,26 +62,8 @@ export abstract class RESTDataSource<TContext = any> extends DataSource {
 
   initialize(config: DataSourceConfig<TContext>): void {
     this.context = config.context;
-    // add custom adapter to support apollo cache
     this.storageAdapter = new Keyv({
-      store: {
-        get(key: string) {
-          return config.cache.get(key);
-        },
-        clear() {},
-        async delete(key: string) {
-          const result = await config.cache.delete(key);
-          if (result === false) {
-            return false;
-          }
-          return true;
-        },
-        set(key: string, value: string, ttl?: number) {
-          return config.cache.set(key, value, {
-            ttl,
-          });
-        },
-      },
+      store: apolloKeyValueCacheToKeyv(config.cache),
     });
   }
 
@@ -82,16 +86,23 @@ export abstract class RESTDataSource<TContext = any> extends DataSource {
         this.willSendRequest(request);
       }
 
-      const response: Response<TResult> = await got(
-        `${this.baseURL}${request.path}`,
+      const options = got.mergeOptions(
         {
           cache: this.storageAdapter,
           responseType: "json",
           timeout: 5000,
           agent: this.agents,
-          ...this.requestOpts,
-          ...request,
-        }
+          prefixUrl: this.baseURL,
+        },
+        {
+          ...this.globalRequestOpts,
+        },
+        request
+      );
+
+      const response: Response<TResult> = await got(
+        `${request.pathname}`,
+        options as OptionsOfJSONResponseBody
       );
 
       this.memoizedResults.set(cacheKey, response);

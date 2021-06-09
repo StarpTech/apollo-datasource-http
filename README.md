@@ -6,7 +6,7 @@ Optimized REST Data Source.
 - HTTP 1 Keep-alive agents for socket reuse.
 - HTTP-2 support (requires Node.js 15.10.0 or newer)
 - HTTP Client [got](https://github.com/sindresorhus/got) is shipped with RFC 7234 compliant HTTP caching
-- LRU Cache with ttl to memoize GET responses of the same graphql request
+- LRU Cache with ttl to memoize GET requests of the same graphql request (cache key is the full url but can be overwitten)
 - Support for [Apollo Cache Storage backend](https://www.apollographql.com/docs/apollo-server/data/data-sources/#using-memcachedredis-as-a-cache-storage-backend) with individual ttl per request
 
 ## Documentation
@@ -34,6 +34,9 @@ class MoviesAPI extends RESTDataSource {
     super({
       timeout: 2000,
       http2: true,
+      headers: {
+        "X-Client": "client",
+      },
     });
     this.baseURL = "https://movies-api.example.com/";
   }
@@ -41,6 +44,10 @@ class MoviesAPI extends RESTDataSource {
   async getMovie(id) {
     return this.get({
       path: `movies/${id}`,
+      headers: {
+        "X-Foo": "bar",
+      },
+      timeout: 3000,
     });
   }
 }
