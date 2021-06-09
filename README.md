@@ -1,6 +1,6 @@
 # Apollo REST Data Source
 
-Optimized REST Data Source.
+Optimized REST Data Source for Apollo Server
 
 - Optimized for JSON REST
 - HTTP/1 Keep-alive agents for socket reuse.
