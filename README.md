@@ -27,9 +27,9 @@ To get started, install the `apollo-ds-rest` package:
 npm install apollo-ds-rest
 ```
 
-To define a data source, extend the [`RESTDataSource`](https://github.com/apollographql/apollo-server/tree/main/packages/apollo-datasource-rest) class and implement the data fetching methods that your resolvers require. Data sources can then be provided via the `dataSources` property to the `ApolloServer` constructor, as demonstrated in the _Accessing data sources from resolvers_ section below.
+To define a data source, extend the [`RESTDataSource`](./src/rest-data-source.ts) class and implement the data fetching methods that your resolvers require. Data sources can then be provided via the `dataSources` property to the `ApolloServer` constructor, as demonstrated in the _Accessing data sources from resolvers_ section below.
 
-Your implementation of these methods can call on convenience methods built into the [RESTDataSource](./src/RESTDataSource.ts) class to perform HTTP requests, while making it easy to build up query, header, caching parameters, parse JSON results, and handle errors.
+Your implementation of these methods can call on convenience methods built into the [RESTDataSource](./src/rest-data-source.ts) class to perform HTTP requests, while making it easy to build up query, header, caching parameters, parse JSON results, and handle errors.
 
 ```ts
 const { RESTDataSource } = require("apollo-ds-rest");
