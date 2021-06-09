@@ -23,4 +23,4 @@ jobs:
       run: npm run lint
 
     - name: Test
-      run: npm test
+      run: npm run cov
