@@ -22,6 +22,15 @@ import {KeyValueCache} from 'apollo-server-caching';
 const {HttpsAgent} = HttpAgent;
 
 export type Request = OptionsOfJSONResponseBody | NormalizedOptions;
+export interface LRUOptions {
+	readonly maxAge?: number;
+	readonly maxSize: number;
+}
+
+export interface HTTPDataSourceOptions {
+	request?: OptionsOfJSONResponseBody;
+	lru?: LRUOptions;
+}
 
 function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
 	return {
@@ -48,31 +57,28 @@ function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
 export abstract class HTTPDataSource<TContext = any> extends DataSource {
 	public baseURL?: string;
 	public context!: TContext;
-	public abortController!: AbortController;
+	public abortController: AbortController;
 	private storageAdapter!: Keyv;
-	private readonly memoizedResults: QuickLRU<string, Response<any>> =
-		new QuickLRU({
-			maxSize: 100,
-			maxAge: 10_000
-		});
+	private readonly memoizedResults: QuickLRU<string, Response<any>>;
 
-	private readonly agents!: Agents;
+	private static readonly agents: Agents = {
+		http: new HttpAgent({
+			keepAlive: true,
+			// New default starting with Node 16
+			scheduling: 'lifo'
+		}),
+		https: new HttpsAgent({
+			keepAlive: true,
+			scheduling: 'lifo'
+		})
+	};
 
-	constructor(
-		private readonly globalRequestOptions?: OptionsOfJSONResponseBody
-	) {
+	constructor(private readonly options?: HTTPDataSourceOptions) {
 		super();
+		this.memoizedResults = new QuickLRU({
+			maxSize: this.options?.lru?.maxSize ? this.options.lru.maxSize : 100
+		});
 		this.abortController = new AbortController();
-		this.agents = {
-			http: new HttpAgent({
-				keepAlive: true,
-				scheduling: 'lifo'
-			}),
-			https: new HttpsAgent({
-				keepAlive: true,
-				scheduling: 'lifo'
-			})
-		};
 	}
 
 	initialize(config: DataSourceConfig<TContext>): void {
@@ -148,11 +154,11 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 				path,
 				responseType: 'json',
 				timeout: 5000,
-				agent: this.agents,
+				agent: HTTPDataSource.agents,
 				prefixUrl: this.baseURL
 			},
 			{
-				...this.globalRequestOptions
+				...this.options?.request
 			},
 			request
 		);
@@ -174,9 +180,11 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 			options as OptionsOfJSONResponseBody
 		);
 
-		this.abortController.signal.addEventListener('abort', () => {
+		const abort = () => {
 			cancelableRequest.cancel('abortController');
-		});
+		};
+
+		this.abortController.signal.addEventListener('abort', abort);
 
 		try {
 			const response = await cancelableRequest;
@@ -198,6 +206,8 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 			}
 
 			throw error_;
+		} finally {
+			this.abortController.signal.removeEventListener('abort', abort);
 		}
 	}
 }

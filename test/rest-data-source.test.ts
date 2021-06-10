@@ -169,7 +169,9 @@ test('Should timeout', async (t) => {
 
 		constructor() {
 			super({
-				timeout: 100
+				request: {
+					timeout: 100
+				}
 			});
 		}
 
@@ -202,7 +204,9 @@ test.cb('Should abort request', (t) => {
 
 		constructor() {
 			super({
-				timeout: 1000
+				request: {
+					timeout: 1000
+				}
 			});
 		}
 

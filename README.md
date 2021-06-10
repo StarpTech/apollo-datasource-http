@@ -13,7 +13,7 @@ Optimized HTTP Data Source for Apollo Server
   - Timeout handling
   - RFC 7234 compliant HTTP caching
 - LRU Cache with ttl to memoize GET requests within the same graphql request
-- [AbortController ](https://github.com/mysticatea/abort-controller) to cancel all running requests
+- Support [AbortController ](https://github.com/mysticatea/abort-controller) to manually cancel all running requests
 - Support for [Apollo Cache Storage backend](https://www.apollographql.com/docs/apollo-server/data/data-sources/#using-memcachedredis-as-a-cache-storage-backend)
 
 ## Documentation
@@ -36,7 +36,7 @@ const server = new ApolloServer({
   resolvers,
   dataSources: () => {
     return {
-      moviesAPI: new MoviesAPI()
+      moviesAPI: new MoviesAPI(),
     };
   },
 });
@@ -51,10 +51,12 @@ class MoviesAPI extends HTTPDataSource {
   constructor() {
     // global client options
     super({
-      timeout: 2000,
-      http2: true,
-      headers: {
-        "X-Client": "client",
+      request: {
+        timeout: 2000,
+        http2: true,
+        headers: {
+          "X-Client": "client",
+        },
       },
     });
     this.baseURL = "https://movies-api.example.com";
