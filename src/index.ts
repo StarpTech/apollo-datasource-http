@@ -1,4 +1,4 @@
-export {RESTDataSource, Request} from './rest-data-source';
+export {HTTPDataSource, Request} from './http-data-source';
 export {
 	Response,
 	CacheError,

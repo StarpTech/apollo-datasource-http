@@ -45,7 +45,7 @@ function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
 	};
 }
 
-export abstract class RESTDataSource<TContext = any> extends DataSource {
+export abstract class HTTPDataSource<TContext = any> extends DataSource {
 	public baseURL?: string;
 	public context!: TContext;
 	public abortController!: AbortController;

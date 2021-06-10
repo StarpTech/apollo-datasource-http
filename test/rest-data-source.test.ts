@@ -6,7 +6,7 @@ import {
 import anyTest, {TestInterface} from 'ava';
 import {uid} from 'uid';
 import nock from 'nock';
-import {CancelError, Request, RESTDataSource, TimeoutError} from '../src';
+import {CancelError, Request, HTTPDataSource, TimeoutError} from '../src';
 import {DataSourceConfig} from 'apollo-datasource';
 
 const test = anyTest as TestInterface<{path: string}>;
@@ -20,7 +20,7 @@ test('Should be able to make a simple GET call', async (t) => {
 	const {path} = t.context;
 	const scope = nock(baseURL).get(path).reply(200, {name: 'foo'});
 
-	const dataSource = new (class extends RESTDataSource {
+	const dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async getFoo() {
@@ -39,7 +39,7 @@ test('Should error with ApolloError', async (t) => {
 	const {path} = t.context;
 	const scope = nock(baseURL).get(path).reply(400);
 
-	const dataSource = new (class extends RESTDataSource {
+	const dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async getFoo() {
@@ -60,7 +60,7 @@ test('Should error with AuthenticationError', async (t) => {
 	const {path} = t.context;
 	const scope = nock(baseURL).get(path).reply(401);
 
-	const dataSource = new (class extends RESTDataSource {
+	const dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async getFoo() {
@@ -84,7 +84,7 @@ test('Should error with ForbiddenError', async (t) => {
 	const {path} = t.context;
 	const scope = nock(baseURL).get(path).reply(403);
 
-	const dataSource = new (class extends RESTDataSource {
+	const dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async getFoo() {
@@ -108,7 +108,7 @@ test('Should cache subsequent GET calls to the same endpoint', async (t) => {
 	const {path} = t.context;
 	const scope = nock(baseURL).get(path).times(1).reply(200, {name: 'foo'});
 
-	const dataSource = new (class extends RESTDataSource {
+	const dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async getFoo() {
@@ -134,7 +134,7 @@ test('Should be able to define a custom cache key for request memoization', asyn
 	const {path} = t.context;
 	const scope = nock(baseURL).get(path).times(1).reply(200, {name: 'foo'});
 
-	const dataSource = new (class extends RESTDataSource {
+	const dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		cacheKey(_request: Request) {
@@ -164,7 +164,7 @@ test('Should timeout', async (t) => {
 	const {path} = t.context;
 	const scope = nock(baseURL).get(path).delay(300).reply(200, {name: 'foo'});
 
-	const dataSource = new (class extends RESTDataSource {
+	const dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		constructor() {
@@ -197,7 +197,7 @@ test.cb('Should abort request', (t) => {
 	const {path} = t.context;
 	const scope = nock(baseURL).get(path).delay(500).reply(200, {name: 'foo'});
 
-	const dataSource = new (class extends RESTDataSource {
+	const dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		constructor() {
@@ -242,7 +242,7 @@ test('Should be able to modify request in willSendRequest', async (t) => {
 		.get(path)
 		.reply(200, {name: 'foo'});
 
-	const dataSource = new (class extends RESTDataSource {
+	const dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async willSendRequest(request: Request) {
@@ -269,7 +269,7 @@ test('Initialize data source with cache and context', async (t) => {
 	const {path} = t.context;
 	const scope = nock(baseURL).get(path).reply(200, {name: 'foo'});
 
-	const dataSource = new (class extends RESTDataSource {
+	const dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async getFoo() {
@@ -319,7 +319,7 @@ test('Response is cached with max-age', async (t) => {
 		}
 	);
 
-	let dataSource = new (class extends RESTDataSource {
+	let dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async getFoo() {
@@ -360,7 +360,7 @@ test('Response is cached with max-age', async (t) => {
 	t.deepEqual(response.body, {name: 'foo'});
 	t.true(map.size > 0);
 
-	dataSource = new (class extends RESTDataSource {
+	dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async getFoo() {
@@ -386,7 +386,7 @@ test('Response is not cached', async (t) => {
 		}
 	);
 
-	let dataSource = new (class extends RESTDataSource {
+	let dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async getFoo() {
@@ -426,7 +426,7 @@ test('Response is not cached', async (t) => {
 	t.deepEqual(response.body, {name: 'foo'});
 	t.true(map.size === 0);
 
-	dataSource = new (class extends RESTDataSource {
+	dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async getFoo() {
@@ -453,7 +453,7 @@ test('Response is not cached due to origin error', async (t) => {
 		}
 	);
 
-	let dataSource = new (class extends RESTDataSource {
+	let dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async getFoo() {
@@ -494,7 +494,7 @@ test('Response is not cached due to origin error', async (t) => {
 	t.deepEqual(response.body, {name: 'foo'});
 	t.true(map.size > 0);
 
-	dataSource = new (class extends RESTDataSource {
+	dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async getFoo() {
@@ -529,7 +529,7 @@ test('Response is cached due to stale-if-error', async (t) => {
 	);
 	const scopeError = nock(baseURL).get(path).once().reply(500);
 
-	let dataSource = new (class extends RESTDataSource {
+	let dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async getFoo() {
@@ -563,7 +563,7 @@ test('Response is cached due to stale-if-error', async (t) => {
 	t.deepEqual(response.body, {name: 'foo'});
 	t.true(map.size > 0);
 
-	dataSource = new (class extends RESTDataSource {
+	dataSource = new (class extends HTTPDataSource {
 		baseURL = baseURL;
 
 		async getFoo() {

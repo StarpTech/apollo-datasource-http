@@ -1,10 +1,10 @@
-# Apollo REST Data Source
+# Apollo HTTP Data Source
 
-[![CI](https://github.com/StarpTech/apollo-datasource-rest/actions/workflows/ci.yml/badge.svg)](https://github.com/StarpTech/apollo-datasource-rest/actions/workflows/ci.yml)
+[![CI](https://github.com/StarpTech/apollo-datasource-http/actions/workflows/ci.yml/badge.svg)](https://github.com/StarpTech/apollo-datasource-http/actions/workflows/ci.yml)
 
-Optimized REST Data Source for Apollo Server
+Optimized HTTP Data Source for Apollo Server
 
-- Optimized for JSON REST
+- JSON by default
 - HTTP/1 [Keep-alive agents](https://github.com/node-modules/agentkeepalive) for socket reuse
 - HTTP/2 support (requires Node.js 15.10.0 or newer)
 - Uses [Got](https://github.com/sindresorhus/got) a modern HTTP Client shipped with:
@@ -22,13 +22,13 @@ View the [Apollo Server documentation for data sources](https://www.apollographq
 
 ## Usage
 
-To get started, install the `apollo-ds-rest` package:
+To get started, install the `apollo-datasource-http` package:
 
 ```bash
-npm install apollo-ds-rest
+npm install apollo-datasource-http
 ```
 
-To define a data source, extend the [`RESTDataSource`](./src/rest-data-source.ts) class and implement the data fetching methods that your resolvers require. Data sources can then be provided via the `dataSources` property to the `ApolloServer` constructor, as demonstrated in the section below.
+To define a data source, extend the [`HTTPDataSource`](./src/http-data-source.ts) class and implement the data fetching methods that your resolvers require. Data sources can then be provided via the `dataSources` property to the `ApolloServer` constructor, as demonstrated in the section below.
 
 ```ts
 const server = new ApolloServer({
@@ -42,12 +42,12 @@ const server = new ApolloServer({
 });
 ```
 
-Your implementation of these methods can call on convenience methods built into the [RESTDataSource](./src/rest-data-source.ts) class to perform HTTP requests, while making it easy to pass different options and handle errors.
+Your implementation of these methods can call on convenience methods built into the [HTTPDataSource](./src/http-data-source.ts) class to perform HTTP requests, while making it easy to pass different options and handle errors.
 
 ```ts
-const { RESTDataSource } = require("apollo-ds-rest");
+const { HTTPDataSource } = require("apollo-datasource-http");
 
-class MoviesAPI extends RESTDataSource {
+class MoviesAPI extends HTTPDataSource {
   constructor() {
     // global client options
     super({
