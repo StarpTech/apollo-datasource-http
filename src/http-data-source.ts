@@ -55,12 +55,6 @@ function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
 }
 
 export abstract class HTTPDataSource<TContext = any> extends DataSource {
-	public baseURL?: string;
-	public context!: TContext;
-	public abortController: AbortController;
-	private storageAdapter!: Keyv;
-	private readonly memoizedResults: QuickLRU<string, Response<any>>;
-
 	private static readonly agents: Agents = {
 		http: new HttpAgent({
 			keepAlive: true,
@@ -72,6 +66,12 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 			scheduling: 'lifo'
 		})
 	};
+
+	public baseURL?: string;
+	public context!: TContext;
+	public abortController: AbortController;
+	private storageAdapter!: Keyv;
+	private readonly memoizedResults: QuickLRU<string, Response<any>>;
 
 	constructor(private readonly options?: HTTPDataSourceOptions) {
 		super();
