@@ -37,7 +37,11 @@ function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
 		async get(key: string) {
 			return cache.get(key);
 		},
-		clear() {},
+		clear() {
+			throw new Error(
+				'clear() method is not supported by apollo key value cache'
+			);
+		},
 		async delete(key: string) {
 			const result = await cache.delete(key);
 			if (result === false) {
