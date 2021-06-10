@@ -33,6 +33,7 @@
     "prettier": true,
     "rules": {
       "@typescript-eslint/no-empty-function": "off",
+      "promise/prefer-await-to-then": "off",
       "node/no-deprecated-api": "off",
       "node/prefer-global/url": "off",
       "node/prefer-global/url-search-params": "off",
@@ -62,6 +63,7 @@
   },
   "dependencies": {
     "@alloc/quick-lru": "^5.2.0",
+    "abort-controller": "^3.0.0",
     "agentkeepalive": "^4.1.4",
     "apollo-datasource": "^0.9.0",
     "apollo-server-caching": "^0.7.0",

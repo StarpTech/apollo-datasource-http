@@ -6,7 +6,7 @@ import {
 import anyTest, {TestInterface} from 'ava';
 import {uid} from 'uid';
 import nock from 'nock';
-import {Request, RESTDataSource, TimeoutError} from '../src';
+import {CancelError, Request, RESTDataSource, TimeoutError} from '../src';
 import {DataSourceConfig} from 'apollo-datasource';
 
 const test = anyTest as TestInterface<{path: string}>;
@@ -188,6 +188,47 @@ test('Should timeout', async (t) => {
 	);
 
 	t.is(scope.isDone(), true);
+});
+
+test.cb('Should abort request', (t) => {
+	t.plan(2);
+
+	const baseURL = 'https://api.example.com';
+	const {path} = t.context;
+	const scope = nock(baseURL).get(path).delay(500).reply(200, {name: 'foo'});
+
+	const dataSource = new (class extends RESTDataSource {
+		baseURL = baseURL;
+
+		constructor() {
+			super({
+				timeout: 1000
+			});
+		}
+
+		async getFoo() {
+			return this.get(path);
+		}
+	})();
+
+	t.throwsAsync(
+		async () => {
+			try {
+				await dataSource.getFoo();
+				t.fail();
+			} catch (error) {
+				t.is(scope.isDone(), false);
+				throw error;
+			}
+		},
+		{
+			instanceOf: CancelError,
+			message: 'Promise was canceled'
+		},
+		'Timeout'
+	).finally(t.end);
+
+	dataSource.abortController.abort();
 });
 
 test('Should be able to modify request in willSendRequest', async (t) => {

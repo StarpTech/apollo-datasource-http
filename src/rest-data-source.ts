@@ -7,6 +7,7 @@ import got, {
 	Response
 } from 'got';
 import QuickLRU from '@alloc/quick-lru';
+import AbortController from 'abort-controller';
 
 import HttpAgent from 'agentkeepalive';
 
@@ -47,6 +48,7 @@ function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
 export abstract class RESTDataSource<TContext = any> extends DataSource {
 	public baseURL?: string;
 	public context!: TContext;
+	public abortController!: AbortController;
 	private storageAdapter!: Keyv;
 	private readonly memoizedResults: QuickLRU<string, Response<any>> =
 		new QuickLRU({
@@ -60,6 +62,7 @@ export abstract class RESTDataSource<TContext = any> extends DataSource {
 		private readonly globalRequestOptions?: OptionsOfJSONResponseBody
 	) {
 		super();
+		this.abortController = new AbortController();
 		this.agents = {
 			http: new HttpAgent({
 				keepAlive: true,
@@ -139,42 +142,46 @@ export abstract class RESTDataSource<TContext = any> extends DataSource {
 		path: string,
 		request: Request
 	): Promise<Response<TResult>> {
+		const options = got.mergeOptions(
+			{
+				cache: this.storageAdapter,
+				path,
+				responseType: 'json',
+				timeout: 5000,
+				agent: this.agents,
+				prefixUrl: this.baseURL
+			},
+			{
+				...this.globalRequestOptions
+			},
+			request
+		);
+
+		const cacheKey = this.cacheKey(options);
+
+		// Memoize get call for the same data source instance
+		// data sources are scoped to the current request
+		if (options.method === 'GET') {
+			const response = this.memoizedResults.get(cacheKey);
+			if (response) return response;
+		}
+
+		if (this.willSendRequest) {
+			await this.willSendRequest(options);
+		}
+
+		const cancelableRequest = got<TResult>(
+			options as OptionsOfJSONResponseBody
+		);
+
+		this.abortController.signal.addEventListener('abort', () => {
+			cancelableRequest.cancel('abortController');
+		});
+
 		try {
-			const options = got.mergeOptions(
-				{
-					cache: this.storageAdapter,
-					path,
-					responseType: 'json',
-					timeout: 5000,
-					agent: this.agents,
-					prefixUrl: this.baseURL
-				},
-				{
-					...this.globalRequestOptions
-				},
-				request
-			);
-
-			const cacheKey = this.cacheKey(options);
-
-			// Memoize get call for the same data source instance
-			// data sources are scoped to the current request
-			if (options.method === 'GET') {
-				const response = this.memoizedResults.get(cacheKey);
-				if (response) return response;
-			}
-
-			if (this.willSendRequest) {
-				await this.willSendRequest(options);
-			}
-
-			const response: Response<TResult> = await got(
-				options as OptionsOfJSONResponseBody
-			);
-
+			const response = await cancelableRequest;
 			this.memoizedResults.set(cacheKey, response);
-
-			return await this.didReceiveResponse<TResult>(response, options);
+			return this.didReceiveResponse<TResult>(response, options);
 		} catch (error) {
 			let error_ = error;
 

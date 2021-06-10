@@ -13,6 +13,7 @@ Optimized REST Data Source for Apollo Server
   - Timeout handling
   - RFC 7234 compliant HTTP caching
 - LRU Cache with ttl to memoize GET requests within the same graphql request
+- [AbortController ](https://github.com/mysticatea/abort-controller) to cancel all running requests
 - Support for [Apollo Cache Storage backend](https://www.apollographql.com/docs/apollo-server/data/data-sources/#using-memcachedredis-as-a-cache-storage-backend)
 
 ## Documentation
