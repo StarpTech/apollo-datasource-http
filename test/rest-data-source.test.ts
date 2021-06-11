@@ -232,7 +232,7 @@ test.cb('Should abort request', (t) => {
 		'Timeout'
 	).finally(t.end);
 
-	dataSource.abortController.abort();
+	dataSource.abort();
 });
 
 test('Should be able to modify request in willSendRequest', async (t) => {

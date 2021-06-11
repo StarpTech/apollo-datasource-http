@@ -58,6 +58,10 @@ function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
 	};
 }
 
+/**
+ * HTTPDataSource is an optimized HTTP Data Source for Apollo Server
+ * It focus on reliability and performance.
+ */
 export abstract class HTTPDataSource<TContext = any> extends DataSource {
 	private static readonly agents: Agents = {
 		http: new HttpAgent({
@@ -73,7 +77,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
 	public baseURL?: string;
 	public context!: TContext;
-	public abortController: AbortController;
+	private readonly abortController: AbortController;
 	private storageAdapter!: Keyv;
 	private readonly memoizedResults: QuickLRU<string, Response<any>>;
 
@@ -85,6 +89,11 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 		this.abortController = new AbortController();
 	}
 
+	/**
+	 * Initialize the datasource with apollo internals (context, cache).
+	 *
+	 * @param config
+	 */
 	initialize(config: DataSourceConfig<TContext>): void {
 		this.context = config.context;
 		this.storageAdapter = new Keyv({
@@ -92,6 +101,21 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 		});
 	}
 
+	/**
+	 * Abort and signal to any request that the associated activity is to be aborted.
+	 */
+	abort() {
+		this.abortController.abort();
+	}
+
+	/**
+	 * DidReceiveResponse is executed after a response has been received.
+	 * You can manipulate the response by returning a different response.
+	 *
+	 * @param response
+	 * @param _request
+	 * @returns
+	 */
 	protected async didReceiveResponse<TResult = unknown>(
 		response: Response<TResult>,
 		_request: Request
@@ -99,13 +123,32 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 		return response;
 	}
 
+	/**
+	 * CacheKey returns the key for the GET request.
+	 * The key is used to memoize the request in the LRU cache.
+	 *
+	 * @param request
+	 * @returns
+	 */
 	protected cacheKey(request: Request): string {
 		if (request.url) return request.url.toString();
 		throw new Error('No Cache key provided');
 	}
 
+	/**
+	 * WillSendRequest is executed before a request is made and isn't executed for memoized calls.
+	 * You can manipulate the request e.g add/remove headers.
+	 *
+	 * @param request
+	 */
 	protected willSendRequest?(request?: Request): Promise<void>;
 
+	/**
+	 * DidEncounterError is executed for any request error.
+	 * The raw error is passed. The thrown error might be different.
+	 *
+	 * @param _error
+	 */
 	protected didEncounterError(_error: Error) {}
 
 	protected async get<TResult = unknown>(

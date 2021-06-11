@@ -45,9 +45,9 @@ const server = new ApolloServer({
 Your implementation of these methods can call on convenience methods built into the [HTTPDataSource](./src/http-data-source.ts) class to perform HTTP requests, while making it easy to pass different options and handle errors.
 
 ```ts
-const { HTTPDataSource } = require("apollo-datasource-http");
+import { HTTPDataSource } from "apollo-datasource-http";
 
-class MoviesAPI extends HTTPDataSource {
+const datasource = new (class MoviesAPI extends HTTPDataSource {
   constructor() {
     // global client options
     super({
@@ -60,11 +60,11 @@ class MoviesAPI extends HTTPDataSource {
       },
     });
     this.baseURL = "https://movies-api.example.com";
-  }
+  })
 
   cacheKey() {}
 
-  // lifecycle hooks for logging, tracing and request manipulation
+  // lifecycle hooks for logging, tracing and request, response manipulation
   didEncounterError() {}
   async willSendRequest() {}
   async didReceiveResponse() {}
@@ -78,4 +78,7 @@ class MoviesAPI extends HTTPDataSource {
     });
   }
 }
+
+// cancel all running requests e.g when request is closed prematurely
+datasource.abort()
 ```
