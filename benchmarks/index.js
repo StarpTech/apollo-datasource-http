@@ -101,7 +101,7 @@ if (isMainThread) {
     }
 
     default: {
-      throw new Error(`Invalid fetch client ${clientType}`)
+      throw new Error(`Invalid data-source ${clientType}`)
     }
   }
 
