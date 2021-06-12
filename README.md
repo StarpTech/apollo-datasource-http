@@ -37,9 +37,9 @@ const server = new ApolloServer({
   dataSources: () => {
     return {
       moviesAPI: new MoviesAPI(),
-    };
+    }
   },
-});
+})
 ```
 
 Your implementation of these methods can call on convenience methods built into the [HTTPDataSource](./src/http-data-source.ts) class to perform HTTP requests, while making it easy to pass different options and handle errors.

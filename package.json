@@ -13,10 +13,10 @@
   },
   "scripts": {
     "build": "tsc",
-    "lint": "xo",
-    "lint:fix": "xo --fix",
+    "format": "prettier --write '**/*.{js,ts,json,md}'",
     "cov": "nyc --reporter=lcov --reporter=text-summary -- npm run test",
     "test": "ava",
+    "bench": "npm run build && node benchmarks",
     "prepare": "npm run build",
     "release": "release-it --github.release"
   },
@@ -37,26 +37,6 @@
     "dist/src"
   ],
   "sideEffects": false,
-  "xo": {
-    "prettier": true,
-    "rules": {
-      "@typescript-eslint/no-empty-function": "off",
-      "promise/prefer-await-to-then": "off",
-      "node/no-deprecated-api": "off",
-      "node/prefer-global/url": "off",
-      "node/prefer-global/url-search-params": "off",
-      "@typescript-eslint/no-implicit-any-catch": "off",
-      "unicorn/prefer-node-protocol": "off",
-      "ava/assertion-arguments": "off",
-      "@typescript-eslint/no-unsafe-member-access": "off",
-      "@typescript-eslint/no-unsafe-return": "off",
-      "@typescript-eslint/no-unsafe-assignment": "off",
-      "@typescript-eslint/no-unsafe-call": "off",
-      "@typescript-eslint/no-unsafe-argument": "off",
-      "@typescript-eslint/no-non-null-assertion": "off",
-      "import/order": "off"
-    }
-  },
   "ava": {
     "files": [
       "test/*"
@@ -81,13 +61,14 @@
     "keyv": "^4.0.3"
   },
   "devDependencies": {
-    "release-it": "^14.8.0",
+    "apollo-datasource-rest": "^0.14.0",
     "ava": "^3.15.0",
     "nock": "^13.1.0",
     "nyc": "^15.1.0",
+    "prettier": "^2.3.1",
+    "release-it": "^14.8.0",
     "ts-node": "^10.0.0",
-    "uid": "^2.0.0",
     "typescript": "^4.3.2",
-    "xo": "^0.40.2"
+    "uid": "^2.0.0"
   }
 }
