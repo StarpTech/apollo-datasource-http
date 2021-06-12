@@ -14,4 +14,4 @@ apollo-datasource-http    | total time: 625281900ns (625.282ms)
 apollo-datasource-http <> apollo-datasource-rest percent change: 0.541%
 ```
 
-**Result:** Difference of +-0.5%. You can use `apollo-datasource-http` without negative performance cost.
+**Result:** Difference of +-0.5%. You can use `apollo-datasource-http` without noticeable performance cost.
