@@ -2,13 +2,15 @@
 
 const fs = require('fs')
 const { createSecureServer } = require('http2')
+const h2url = require('h2url')
 const { join } = require('path')
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads')
 
 function printResults(results, n) {
   console.log(`Results for ${n} subsequent requests: `)
+  const baseKey = 'apollo-datasource-http (http2)'
   const baselineTiming = Number.parseInt(
-    results['apollo-datasource-http'].endTime - results['apollo-datasource-http'].startTime,
+    results[baseKey].endTime - results[baseKey].startTime,
   )
   for (const [key, timing] of Object.entries(results)) {
     const elapsedTT = Number.parseFloat(timing.endTime - timing.startTime)
@@ -19,10 +21,10 @@ function printResults(results, n) {
 
   console.log('---')
   for (const [key, timing] of Object.entries(results)) {
-    if (key === 'apollo-datasource-http') continue
+    if (key === baseKey) continue
     const elapsedTT = Number.parseFloat(timing.endTime - timing.startTime)
     const percent = ((baselineTiming - elapsedTT) / elapsedTT) * 100
-    console.log(`apollo-datasource-http <> ${key} percent change: ${percent.toFixed(3)}%`)
+    console.log(`${baseKey} <> ${key} percent change: ${percent.toFixed(3)}%`)
   }
 }
 
@@ -59,8 +61,9 @@ if (isMainThread) {
       })
 
     Promise.all([
-      spawnWorker(N, url, 'apollo-datasource-rest'),
-      spawnWorker(N, url, 'apollo-datasource-http'),
+      spawnWorker(N, url, 'apollo-datasource-rest (http1)'),
+      spawnWorker(N, url, 'apollo-datasource-http (http2)'),
+      spawnWorker(N, url, 'h2url (http2)'),
     ]).then((values) => {
       const results = {}
       for (const { clientType, startTime, endTime } of values) {
@@ -78,7 +81,7 @@ if (isMainThread) {
 
   let factory = null
   switch (clientType) {
-    case 'apollo-datasource-http': {
+    case 'apollo-datasource-http (http2)': {
       const { HTTPDataSource } = require('..')
       factory = () => {
         return new (class MoviesAPI extends HTTPDataSource {
@@ -101,7 +104,7 @@ if (isMainThread) {
       break
     }
 
-    case 'apollo-datasource-rest': {
+    case 'apollo-datasource-rest (http1)': {
       const https = require('https')
       const { RESTDataSource, HTTPCache } = require('apollo-datasource-rest')
       const agent = new https.Agent({
@@ -136,6 +139,17 @@ if (isMainThread) {
       break
     }
 
+    case 'h2url (http2)': {
+      factory = () => {
+        return {
+          async getFoo(path) {
+            const res = await h2url.concat({ url: `${url}${path}` })
+          }
+        }
+      }
+      break
+    }
+
     default: {
       throw new Error(`Invalid data-source ${clientType}`)
     }
@@ -146,7 +160,7 @@ if (isMainThread) {
 
     for (let i = 0; i < N; i++) {
       const datasource = factory()
-      // unique url to avoid request deduplication 
+      // unique url to avoid request deduplication
       await datasource.getFoo(`/${i}`)
     }
 

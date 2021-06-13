@@ -61,12 +61,14 @@
     "keyv": "^4.0.3"
   },
   "devDependencies": {
+    "@types/node": "^14.17.3",
     "apollo-datasource-rest": "^0.14.0",
     "ava": "^3.15.0",
+    "h2url": "^0.2.0",
     "nock": "^13.1.0",
     "nyc": "^15.1.0",
     "prettier": "^2.3.1",
-    "release-it": "^14.8.0",
+    "release-it": "^14.9.0",
     "ts-node": "^10.0.0",
     "typescript": "^4.3.2",
     "uid": "^2.0.0"

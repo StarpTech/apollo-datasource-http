@@ -5,8 +5,9 @@ const { Worker, isMainThread, parentPort, workerData } = require('worker_threads
 
 function printResults(results, n) {
   console.log(`Results for ${n} subsequent requests: `)
+  const baseKey = 'apollo-datasource-http (http1)'
   const baselineTiming = Number.parseInt(
-    results['apollo-datasource-http'].endTime - results['apollo-datasource-http'].startTime,
+    results[baseKey].endTime - results[baseKey].startTime,
   )
   for (const [key, timing] of Object.entries(results)) {
     const elapsedTT = Number.parseFloat(timing.endTime - timing.startTime)
@@ -17,10 +18,10 @@ function printResults(results, n) {
 
   console.log('---')
   for (const [key, timing] of Object.entries(results)) {
-    if (key === 'apollo-datasource-http') continue
+    if (key === baseKey) continue
     const elapsedTT = Number.parseFloat(timing.endTime - timing.startTime)
     const percent = ((baselineTiming - elapsedTT) / elapsedTT) * 100
-    console.log(`apollo-datasource-http <> ${key} percent change: ${percent.toFixed(3)}%`)
+    console.log(`${baseKey} <> ${key} percent change: ${percent.toFixed(3)}%`)
   }
 }
 
@@ -50,8 +51,8 @@ if (isMainThread) {
       })
 
     Promise.all([
-      spawnWorker(N, url, 'apollo-datasource-rest'),
-      spawnWorker(N, url, 'apollo-datasource-http'),
+      spawnWorker(N, url, 'apollo-datasource-rest (http1)'),
+      spawnWorker(N, url, 'apollo-datasource-http (http1)'),
     ]).then((values) => {
       const results = {}
       for (const { clientType, startTime, endTime } of values) {
@@ -69,7 +70,7 @@ if (isMainThread) {
 
   let factory = null
   switch (clientType) {
-    case 'apollo-datasource-http': {
+    case 'apollo-datasource-http (http1)': {
       const { HTTPDataSource } = require('..')
       factory = () => {
         return new (class MoviesAPI extends HTTPDataSource {
@@ -82,7 +83,7 @@ if (isMainThread) {
       break
     }
 
-    case 'apollo-datasource-rest': {
+    case 'apollo-datasource-rest (http1)': {
       const http = require('http')
       const { RESTDataSource, HTTPCache } = require('apollo-datasource-rest')
       const agent = new http.Agent({
