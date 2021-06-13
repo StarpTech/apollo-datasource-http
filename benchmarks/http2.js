@@ -3,7 +3,6 @@
 const fs = require('fs')
 const { createSecureServer } = require('http2')
 const h2url = require('h2url')
-const { join } = require('path')
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads')
 
 function printResults(results, n) {
@@ -32,8 +31,8 @@ if (isMainThread) {
   const server = createSecureServer(
     {
       allowHTTP1: true,
-      key: fs.readFileSync(join(__dirname, 'localhost-privkey.pem')),
-      cert: fs.readFileSync(join(__dirname, 'localhost-cert.pem')),
+      key: fs.readFileSync('localhost-privkey.pem'),
+      cert: fs.readFileSync('localhost-cert.pem'),
     },
     (request, res) => {
       process.nextTick(() => {

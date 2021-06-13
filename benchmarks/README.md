@@ -1,5 +1,10 @@
 # Benchmark
 
+```
+node http.js
+node http2.js
+```
+
 ## HTTP1
 
 Compare `apollo-datasource-http` (HTTP1) with apollo's `apollo-datasource-rest`  (HTTP1 + keepalive).

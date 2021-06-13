@@ -16,7 +16,6 @@
     "format": "prettier --write '**/*.{js,ts,json,md}'",
     "cov": "nyc --reporter=lcov --reporter=text-summary -- npm run test",
     "test": "ava",
-    "bench": "npm run build && node benchmarks",
     "prepare": "npm run build",
     "release": "release-it --github.release"
   },
