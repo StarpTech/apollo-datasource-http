@@ -1,6 +1,8 @@
 // mostly copied from  https://github.com/Ethan-Arrowood/undici-fetch/blob/main/benchmarks/index.js
 
-const { createServer } = require('http')
+const fs = require('fs')
+const { createSecureServer } = require('http2')
+const { join } = require('path')
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads')
 
 function printResults(results, n) {
@@ -25,15 +27,22 @@ function printResults(results, n) {
 }
 
 if (isMainThread) {
-  const server = createServer((request, res) => {
-    process.nextTick(() => {
-      res.end('{}')
-    })
-  })
+  const server = createSecureServer(
+    {
+      allowHTTP1: true,
+      key: fs.readFileSync(join(__dirname, 'localhost-privkey.pem')),
+      cert: fs.readFileSync(join(__dirname, 'localhost-cert.pem')),
+    },
+    (request, res) => {
+      process.nextTick(() => {
+        res.end('{}')
+      })
+    },
+  )
 
   server.listen(() => {
     const N = 1000
-    const url = `http://localhost:${server.address().port}`
+    const url = `https://localhost:${server.address().port}`
 
     const spawnWorker = (N, url, clientType) =>
       new Promise((resolve, reject) => {
@@ -74,13 +83,31 @@ if (isMainThread) {
       factory = () => {
         return new (class MoviesAPI extends HTTPDataSource {
           baseURL = url
+          constructor() {
+            super({
+              request: {
+                http2: true,
+                https: {
+                  rejectUnauthorized: false,
+                },
+              },
+            })
+          }
+          async getFoo(path) {
+            return this.get(path)
+          }
         })()
       }
       break
     }
 
     case 'apollo-datasource-rest': {
+      const https = require('https')
       const { RESTDataSource, HTTPCache } = require('apollo-datasource-rest')
+      const agent = new https.Agent({
+        rejectUnauthorized: false,
+        keepAlive: true,
+      })
       factory = () => {
         const store = new Map()
         const httpCache = new HTTPCache({
@@ -93,6 +120,15 @@ if (isMainThread) {
         })
         const datasource = new (class MoviesAPI extends RESTDataSource {
           baseURL = url
+          async getFoo(path) {
+            return this.get(
+              path,
+              {},
+              {
+                agent,
+              },
+            )
+          }
         })()
         datasource.httpCache = httpCache
         return datasource
@@ -110,7 +146,8 @@ if (isMainThread) {
 
     for (let i = 0; i < N; i++) {
       const datasource = factory()
-      await datasource.get(`/${i}`)
+      // unique url to avoid request deduplication 
+      await datasource.getFoo(`/${i}`)
     }
 
     const endTime = process.hrtime.bigint()
