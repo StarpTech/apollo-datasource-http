@@ -2,7 +2,7 @@ import { ApolloError, AuthenticationError, ForbiddenError } from 'apollo-server-
 import anyTest, { TestInterface } from 'ava'
 import { uid } from 'uid'
 import nock from 'nock'
-import { CancelError, HTTPDataSource, TimeoutError, RequestOptions } from '../src'
+import { CancelError, HTTPDataSource, TimeoutError, RequestOptions, RequestError, Request } from '../src'
 import { DataSourceConfig } from 'apollo-datasource'
 
 const test = anyTest as TestInterface<{ path: string }>
@@ -126,6 +126,8 @@ test('Should cache subsequent GET calls to the same endpoint', async (t) => {
 })
 
 test('Should be able to define a custom cache key for request memoization', async (t) => {
+  t.plan(5)
+
   const baseURL = 'https://api.example.com'
   const { path } = t.context
   const scope = nock(baseURL).get(path).times(1).reply(200, { name: 'foo' })
@@ -134,6 +136,7 @@ test('Should be able to define a custom cache key for request memoization', asyn
     baseURL = baseURL
 
     onCacheKeyCalculation(_requestOptions: RequestOptions) {
+      t.pass('onCacheKeyCalculation');
       return 'foo'
     }
 
@@ -183,6 +186,39 @@ test('Should timeout', async (t) => {
       message: "Timeout awaiting 'request' for 100ms",
     },
     'Timeout',
+  )
+
+  t.is(scope.isDone(), true)
+})
+
+test('Should call onRequestError on request error', async (t) => {
+  t.plan(5)
+
+  const baseURL = 'https://api.example.com'
+  const { path } = t.context
+  const scope = nock(baseURL).get(path).reply(500)
+
+  const dataSource = new (class extends HTTPDataSource {
+    baseURL = baseURL
+
+    async onRequestError(error: Error, request?: Request) {
+      t.true(error instanceof RequestError);
+      t.truthy(request);
+      t.pass('onRequestError');
+    }
+
+    async getFoo() {
+      return await this.get(path)
+    }
+  })()
+
+  await t.throwsAsync(
+    dataSource.getFoo(),
+    {
+      instanceOf: ApolloError,
+      message: "Response code 500 (Internal Server Error)",
+    },
+    'Server error',
   )
 
   t.is(scope.isDone(), true)

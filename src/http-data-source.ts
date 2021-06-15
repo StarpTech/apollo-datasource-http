@@ -213,11 +213,17 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
       if (error instanceof HTTPError) {
         if (error.response.statusCode === 401) {
-          error_ = new AuthenticationError(error.message)
+          const err = new AuthenticationError(error.message)
+          err.originalError = error
+          error_ = err
         } else if (error.response.statusCode === 403) {
-          error_ = new ForbiddenError(error.message)
+          const err = new ForbiddenError(error.message)
+          err.originalError = error
+          error_ = err
         } else {
-          error_ = new ApolloError(error.message)
+          const err = new ApolloError(error.message)
+          err.originalError = error
+          error_ = err
         }
       }
 
