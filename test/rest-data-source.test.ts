@@ -2,7 +2,7 @@ import { ApolloError, AuthenticationError, ForbiddenError } from 'apollo-server-
 import anyTest, { TestInterface } from 'ava'
 import { uid } from 'uid'
 import nock from 'nock'
-import { CancelError, Request, HTTPDataSource, TimeoutError } from '../src'
+import { CancelError, HTTPDataSource, TimeoutError, RequestOptions } from '../src'
 import { DataSourceConfig } from 'apollo-datasource'
 
 const test = anyTest as TestInterface<{ path: string }>
@@ -133,7 +133,7 @@ test('Should be able to define a custom cache key for request memoization', asyn
   const dataSource = new (class extends HTTPDataSource {
     baseURL = baseURL
 
-    cacheKey(_request: Request) {
+    onCacheKeyCalculation(_requestOptions: RequestOptions) {
       return 'foo'
     }
 
@@ -165,7 +165,7 @@ test('Should timeout', async (t) => {
 
     constructor() {
       super({
-        request: {
+        requestOptions: {
           timeout: 100,
         },
       })
@@ -200,7 +200,7 @@ test.cb('Should abort request', (t) => {
 
     constructor() {
       super({
-        request: {
+        requestOptions: {
           timeout: 1000,
         },
       })
@@ -245,8 +245,8 @@ test('Should be able to modify request in willSendRequest', async (t) => {
   const dataSource = new (class extends HTTPDataSource {
     baseURL = baseURL
 
-    async willSendRequest(request: Request) {
-      request.headers = {
+    async beforeRequest(requestOptions: RequestOptions) {
+      requestOptions.headers = {
         'X-Foo': 'bar',
       }
     }

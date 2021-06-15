@@ -1,4 +1,4 @@
-export { HTTPDataSource, Request } from './http-data-source'
+export { HTTPDataSource, RequestOptions } from './http-data-source'
 export {
   Response,
   CacheError,
@@ -10,4 +10,5 @@ export {
   TimeoutError,
   RequestError,
   UnsupportedProtocolError,
+  GotReturn as Request
 } from 'got'

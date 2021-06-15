@@ -51,7 +51,7 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
   constructor() {
     // global client options
     super({
-      request: {
+      requestOptions: {
         timeout: 2000,
         http2: true,
         headers: {
@@ -62,12 +62,12 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
     this.baseURL = "https://movies-api.example.com";
   })
 
-  cacheKey() {}
+  onCacheKeyCalculation() {}
 
   // lifecycle hooks for logging, tracing and request, response manipulation
-  didEncounterError() {}
-  async willSendRequest() {}
-  async didReceiveResponse() {}
+  async onRequestError() {}
+  async beforeRequest() {}
+  async onResponse() {}
 
   async getMovie(id) {
     return this.get(`/movies/${id}`, {
