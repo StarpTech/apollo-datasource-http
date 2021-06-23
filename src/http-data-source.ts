@@ -30,8 +30,8 @@ export interface LRUOptions {
 }
 
 export interface HTTPDataSourceOptions {
-  requestOptions?: RequestOptions
-  lru?: LRUOptions
+  requestOptions?: Partial<RequestOptions>
+  lru?: Partial<LRUOptions>
 }
 
 function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
