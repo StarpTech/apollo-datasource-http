@@ -1,4 +1,4 @@
-export { HTTPDataSource, RequestOptions } from './http-data-source'
+export { HTTPDataSource, HTTPDataSourceOptions, LRUOptions, RequestOptions } from './http-data-source'
 export {
   Response,
   CacheError,
