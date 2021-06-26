@@ -92,4 +92,4 @@ datasource.abort()
 
 ## Error handling
 
-The http client throws for unsuccessful responses. In case of an request error `onRequestError` is executed. The error is then rethrown.
+The http client throws for unsuccessful responses (statusCode >= 400). In case of an request error `onRequestError` is executed. The error is then rethrown.
