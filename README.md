@@ -86,10 +86,10 @@ datasource.abort()
 ## Hooks
 
 - `onCacheKeyCalculation` - Returns the cache key for request memoization.
-- `onRequestError` - Is executed only for request errors.
-- `beforeRequest` - Is executed before a request is executed.
-- `onResponse` - Is executed on a successful response.
+- `onRequestError` - Is executed only for request errors. This can be used to log or trace errors.
+- `beforeRequest` - Is executed before a request is made. This can be used to intercept requests (setting header, timeouts ...).
+- `onResponse` - Is executed on a successful response. This can be used to alter the response before it is passed to caller.
 
 ## Error handling
 
-The http client throws for unsuccessful responses. Every error is rethrown to the caller. You can use the `onRequestError` hook to log request errors.
+The http client throws for unsuccessful responses. In case of an request error `onRequestError` is executed. The error is then rethrown.
