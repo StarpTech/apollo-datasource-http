@@ -1,127 +1,120 @@
-import { ApolloError, AuthenticationError, ForbiddenError } from 'apollo-server-errors'
 import anyTest, { TestInterface } from 'ava'
-import { uid } from 'uid'
-import nock from 'nock'
-import {
-  CancelError,
-  HTTPDataSource,
-  TimeoutError,
-  RequestOptions,
-  RequestError,
-  Request,
-  Response,
-} from '../src'
-import { DataSourceConfig } from 'apollo-datasource'
+import http from 'http'
+import { setGlobalDispatcher, Agent, Pool } from 'undici'
+import { HTTPDataSource, RequestOptions, Response } from '../src'
+import { AddressInfo } from 'net'
+import { KeyValueCacheSetOptions } from 'apollo-server-caching'
+
+const agent = new Agent({
+  keepAliveTimeout: 10, // milliseconds
+  keepAliveMaxTimeout: 10, // milliseconds
+})
+
+setGlobalDispatcher(agent)
 
 const test = anyTest as TestInterface<{ path: string }>
 
-test.beforeEach((t) => {
-  t.context.path = `/${uid()}`
-})
-
 test('Should be able to make a simple GET call', async (t) => {
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scope = nock(baseURL).get(path).reply(200, { name: 'foo' })
+  t.plan(2)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
 
   const dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    async getFoo() {
-      return await this.get(path)
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path)
     }
   })()
 
   const response = await dataSource.getFoo()
 
-  t.is(scope.isDone(), true)
   t.deepEqual(response.body, { name: 'foo' })
 })
 
-test('Should error with ApolloError', async (t) => {
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scope = nock(baseURL).get(path).reply(400)
+test('Should error', async (t) => {
+  t.plan(2)
+
+  const path = '/'
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.writeHead(401)
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
 
   const dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    async getFoo() {
-      return await this.get(path)
+    constructor() {
+      super(baseURL)
     }
-  })()
-
-  await t.throwsAsync(
-    dataSource.getFoo(),
-    { instanceOf: ApolloError, message: 'Response code 400 (Bad Request)' },
-    'Bad request',
-  )
-  t.is(scope.isDone(), true)
-})
-
-test('Should error with AuthenticationError', async (t) => {
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scope = nock(baseURL).get(path).reply(401)
-
-  const dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    async getFoo() {
-      return await this.get(path)
+    getFoo() {
+      return this.get(path)
     }
   })()
 
   await t.throwsAsync(
     dataSource.getFoo(),
     {
-      instanceOf: AuthenticationError,
-      message: 'Response code 401 (Unauthorized)',
+      instanceOf: Error,
+      message: 'Response code 401',
     },
     'Unauthenticated',
   )
-  t.is(scope.isDone(), true)
-})
-
-test('Should error with ForbiddenError', async (t) => {
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scope = nock(baseURL).get(path).reply(403)
-
-  const dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    async getFoo() {
-      return await this.get(path)
-    }
-  })()
-
-  await t.throwsAsync(
-    dataSource.getFoo(),
-    {
-      instanceOf: ForbiddenError,
-      message: 'Response code 403 (Forbidden)',
-    },
-    'Unauthenticated',
-  )
-  t.is(scope.isDone(), true)
 })
 
 test('Should cache subsequent GET calls to the same endpoint', async (t) => {
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scope = nock(baseURL).get(path).times(1).reply(200, { name: 'foo' })
+  t.plan(5)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
 
   const dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    async getFoo() {
-      return await this.get(path)
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path)
     }
   })()
 
   let response = await dataSource.getFoo()
-  t.false(response.isFromCache)
   t.deepEqual(response.body, { name: 'foo' })
 
   response = await dataSource.getFoo()
@@ -130,96 +123,82 @@ test('Should cache subsequent GET calls to the same endpoint', async (t) => {
   response = await dataSource.getFoo()
   t.deepEqual(response.body, { name: 'foo' })
 
-  t.is(scope.isDone(), true)
+  response = await dataSource.getFoo()
+  t.deepEqual(response.body, { name: 'foo' })
 })
 
 test('Should be able to define a custom cache key for request memoization', async (t) => {
-  t.plan(5)
+  t.plan(7)
 
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scope = nock(baseURL).get(path).times(1).reply(200, { name: 'foo' })
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
 
   const dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    onCacheKeyCalculation(_requestOptions: RequestOptions) {
+    constructor() {
+      super(baseURL)
+    }
+    onCacheKeyCalculation(requestOptions: RequestOptions) {
       t.pass('onCacheKeyCalculation')
+      t.truthy(requestOptions)
       return 'foo'
     }
-
-    async getFoo() {
-      return await this.get(path)
-    }
-
-    async getBar() {
-      return await this.get(path + 'bar')
+    getFoo() {
+      return this.get(path)
     }
   })()
 
   let response = await dataSource.getFoo()
   t.deepEqual(response.body, { name: 'foo' })
 
-  response = await dataSource.getBar()
+  response = await dataSource.getFoo()
   t.deepEqual(response.body, { name: 'foo' })
-
-  t.is(scope.isDone(), true)
-})
-
-test('Should timeout', async (t) => {
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scope = nock(baseURL).get(path).delay(300).reply(200, { name: 'foo' })
-
-  const dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    constructor() {
-      super({
-        requestOptions: {
-          timeout: 100,
-        },
-      })
-    }
-
-    async getFoo() {
-      return await this.get(path)
-    }
-  })()
-
-  await t.throwsAsync(
-    dataSource.getFoo(),
-    {
-      instanceOf: TimeoutError,
-      message: "Timeout awaiting 'request' for 100ms",
-    },
-    'Timeout',
-  )
-
-  t.is(scope.isDone(), true)
 })
 
 test('Should call onError on request error', async (t) => {
-  t.plan(8)
+  t.plan(6)
 
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scope = nock(baseURL).get(path).reply(500)
+  const path = '/'
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.writeHead(500)
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
 
   const dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    onResponse<TResult = any>(request: Request, response: Response<TResult>) {
-      t.truthy(request)
-      t.truthy(response)
-      t.pass('onResponse')
-
-      return super.onResponse(request, response)
+    constructor() {
+      super(baseURL)
     }
 
-    onError(error: RequestError) {
-      t.true(error instanceof RequestError)
-      t.truthy(error.request)
+    onResponse<TResult = any>(response: Response<TResult>) {
+      t.truthy(response)
+      t.pass('onResponse')
+      return super.onResponse<TResult>(response)
+    }
+
+    onError(error: Error) {
+      t.truthy(error)
       t.pass('onRequestError')
     }
 
@@ -231,29 +210,93 @@ test('Should call onError on request error', async (t) => {
   await t.throwsAsync(
     dataSource.getFoo(),
     {
-      instanceOf: ApolloError,
-      message: 'Response code 500 (Internal Server Error)',
+      instanceOf: Error,
+      message: 'Response code 500',
     },
     'Server error',
   )
-
-  t.is(scope.isDone(), true)
 })
 
 test.cb('Should abort request', (t) => {
   t.plan(2)
 
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scope = nock(baseURL).get(path).delay(500).reply(200, { name: 'foo' })
+  const path = '/'
+
+  const server = http
+    .createServer((req, res) => {
+      t.is(req.method, 'GET')
+      setTimeout(() => {
+        res.writeHead(200)
+        res.end()
+        res.socket?.unref()
+      }, 500)
+    })
+    .unref()
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
 
   const dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
     constructor() {
-      super({
-        requestOptions: {
-          timeout: 1000,
+      super(baseURL)
+    }
+
+    async getFoo() {
+      return await this.get(path)
+    }
+  })()
+
+  t.throwsAsync(
+    async () => {
+      try {
+        await dataSource.getFoo()
+        t.fail()
+      } catch (error) {
+        t.pass('Throw error')
+        throw error
+      }
+    },
+    {
+      instanceOf: Error,
+      message: 'Request aborted',
+    },
+    'Timeout',
+  ).finally(t.end)
+
+  dataSource.abort()
+})
+
+test.cb('Should timeout', (t) => {
+  t.plan(3)
+
+  const path = '/'
+
+  const server = http
+    .createServer((req, res) => {
+      t.is(req.method, 'GET')
+      setTimeout(() => {
+        res.writeHead(300)
+        res.end()
+        res.socket?.unref()
+      }, 500)
+    })
+    .unref()
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL, {
+        clientOptions: {
+          bodyTimeout: 100,
+          headersTimeout: 100,
         },
       })
     }
@@ -269,66 +312,87 @@ test.cb('Should abort request', (t) => {
         await dataSource.getFoo()
         t.fail()
       } catch (error) {
-        t.is(scope.isDone(), false)
+        t.pass('Throw error')
         throw error
       }
     },
     {
-      instanceOf: CancelError,
-      message: 'Promise was canceled',
+      instanceOf: Error,
+      message: 'Headers Timeout Error',
     },
     'Timeout',
   ).finally(t.end)
-
-  dataSource.abort()
 })
 
 test('Should be able to modify request in willSendRequest', async (t) => {
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scope = nock(baseURL, {
-    reqheaders: {
-      'X-Foo': 'bar',
-    },
+  t.plan(3)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    t.deepEqual(req.headers['x-foo'], 'bar')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
   })
-    .get(path)
-    .reply(200, { name: 'foo' })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
 
   const dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    async onRequest(requestOptions: RequestOptions) {
+    constructor() {
+      super(baseURL)
+    }
+    onRequest(requestOptions: RequestOptions) {
       requestOptions.headers = {
         'X-Foo': 'bar',
       }
     }
-
-    async getFoo() {
-      return await this.get(path)
+    getFoo() {
+      return this.get(path)
     }
   })()
 
   const response = await dataSource.getFoo()
 
-  t.is(scope.isDone(), true)
   t.deepEqual(response.body, { name: 'foo' })
 })
 
 test('Initialize data source with cache and context', async (t) => {
-  t.plan(4)
+  t.plan(3)
 
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scope = nock(baseURL).get(path).reply(200, { name: 'foo' })
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
 
   const dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    async getFoo() {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
       t.deepEqual(this.context, {
         a: 1,
       })
-      return await this.get(path)
+      return this.get(path)
     }
   })()
 
@@ -353,32 +417,37 @@ test('Initialize data source with cache and context', async (t) => {
 
   const response = await dataSource.getFoo()
 
-  t.is(scope.isDone(), true)
   t.deepEqual(response.body, { name: 'foo' })
-  t.truthy(map.get(`keyv:cacheable-request:GET:https://api.example.com${path}`))
 })
 
-test('Response is cached with max-age', async (t) => {
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scope = nock(baseURL).get(path).once().reply(
-    200,
-    { name: 'foo' },
-    {
-      'Cache-Control': 'public, max-age=60',
-    },
-  )
+test('Response is cached', async (t) => {
+  t.plan(6)
 
-  let dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
+  const path = '/'
 
-    async getFoo() {
-      return await this.get(path, {
-        cacheOptions: {
-          shared: true,
-          cacheHeuristic: 0.1,
-          immutableMinTimeToLive: 24 * 3600 * 1000, // 24h
-          ignoreCargoCult: false,
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path, {
+        requestCache: {
+          maxTtl: 100
         },
       })
     }
@@ -386,8 +455,10 @@ test('Response is cached with max-age', async (t) => {
 
   const map = new Map<string, string>()
 
-  const config: DataSourceConfig<Record<string, unknown>> = {
-    context: {},
+  dataSource.initialize({
+    context: {
+      a: 1,
+    },
     cache: {
       async delete(key: string) {
         return map.delete(key)
@@ -395,236 +466,118 @@ test('Response is cached with max-age', async (t) => {
       async get(key: string) {
         return map.get(key)
       },
-      async set(key: string, value: string) {
+      async set(key: string, value: string, options: KeyValueCacheSetOptions) {
+        t.deepEqual(options, { ttl: 100 })
         map.set(key, value)
       },
     },
-  }
-
-  dataSource.initialize(config)
-
-  let response = await dataSource.getFoo()
-
-  t.is(scope.isDone(), true)
-  t.false(response.isFromCache)
-  t.deepEqual(response.body, { name: 'foo' })
-  t.true(map.size > 0)
-
-  dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    async getFoo() {
-      return await this.get(path)
-    }
-  })()
-
-  dataSource.initialize(config)
-
-  response = await dataSource.getFoo()
-  t.true(response.isFromCache)
-  t.deepEqual(response.body, { name: 'foo' })
-})
-
-test('Response is not cached', async (t) => {
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scope = nock(baseURL).get(path).twice().reply(
-    200,
-    { name: 'foo' },
-    {
-      'Cache-Control': 'public, no-cache, no-store',
-    },
-  )
-
-  let dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    async getFoo() {
-      return await this.get(path, {
-        cacheOptions: {
-          shared: true,
-          cacheHeuristic: 0.1,
-          immutableMinTimeToLive: 24 * 3600 * 1000, // 24h
-          ignoreCargoCult: false,
-        },
-      })
-    }
-  })()
-
-  const map = new Map<string, string>()
-
-  const config: DataSourceConfig<Record<string, unknown>> = {
-    context: {},
-    cache: {
-      async delete(key: string) {
-        return map.delete(key)
-      },
-      async get(key: string) {
-        return map.get(key)
-      },
-      async set(key: string, value: string) {
-        map.set(key, value)
-      },
-    },
-  }
-
-  dataSource.initialize(config)
-
-  let response = await dataSource.getFoo()
-
-  t.false(response.isFromCache)
-  t.deepEqual(response.body, { name: 'foo' })
-  t.true(map.size === 0)
-
-  dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    async getFoo() {
-      return await this.get(path)
-    }
-  })()
-
-  dataSource.initialize(config)
-
-  response = await dataSource.getFoo()
-  t.is(scope.isDone(), true)
-  t.false(response.isFromCache)
-  t.deepEqual(response.body, { name: 'foo' })
-})
-
-test('Response is not cached due to origin error', async (t) => {
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scopeSuccess = nock(baseURL).get(path).once().reply(
-    200,
-    { name: 'foo' },
-    {
-      'Cache-Control': 'public, max-age=0',
-    },
-  )
-
-  let dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    async getFoo() {
-      return await this.get(path, {
-        cacheOptions: {
-          shared: true,
-          cacheHeuristic: 0.1,
-          immutableMinTimeToLive: 24 * 3600 * 1000, // 24h
-          ignoreCargoCult: false,
-        },
-      })
-    }
-  })()
-
-  const map = new Map<string, string>()
-
-  const config: DataSourceConfig<Record<string, unknown>> = {
-    context: {},
-    cache: {
-      async delete(key: string) {
-        return map.delete(key)
-      },
-      async get(key: string) {
-        return map.get(key)
-      },
-      async set(key: string, value: string) {
-        map.set(key, value)
-      },
-    },
-  }
-
-  dataSource.initialize(config)
+  })
 
   const response = await dataSource.getFoo()
 
-  t.is(scopeSuccess.isDone(), true)
-  t.false(response.isFromCache)
   t.deepEqual(response.body, { name: 'foo' })
-  t.true(map.size > 0)
 
-  dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
+  const cached = JSON.parse(map.get('keyv:' + baseURL + path)!)
 
-    async getFoo() {
-      return await this.get(path)
+  t.is(map.size, 1)
+  t.truthy(cached.expires)
+  t.like(cached, { value: wanted })
+})
+
+test('Response is not cached due to origin error', async (t) => {
+  const path = '/'
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.writeHead(500)
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path, {
+        requestCache: {
+          maxTtl: 100
+        },
+      })
     }
   })()
 
-  dataSource.initialize(config)
+  const map = new Map<string, string>()
 
-  const scopeError = nock(baseURL).get(path).once().reply(500)
+  dataSource.initialize({
+    context: {
+      a: 1,
+    },
+    cache: {
+      async delete(key: string) {
+        return map.delete(key)
+      },
+      async get(key: string) {
+        return map.get(key)
+      },
+      async set(key: string, value: string) {
+        console.log(key)
+
+        map.set(key, value)
+      },
+    },
+  })
 
   await t.throwsAsync(
     dataSource.getFoo(),
     {
-      message: 'Response code 500 (Internal Server Error)',
+      message: 'Response code 500',
     },
     'message',
   )
-  t.is(scopeError.isDone(), true)
-  t.false(response.isFromCache)
+
+  t.is(map.size, 0)
 })
 
-test('Response is cached due to stale-if-error', async (t) => {
-  const baseURL = 'https://api.example.com'
-  const { path } = t.context
-  const scopeSuccess = nock(baseURL).get(path).once().reply(
-    200,
-    { name: 'foo' },
-    {
-      'Cache-Control': 'public, max-age=0, stale-if-error=200',
-    },
-  )
-  const scopeError = nock(baseURL).get(path).once().reply(500)
+test('Should be able to pass custom Undici Pool', async (t) => {
+  t.plan(2)
 
-  let dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
+  const path = '/'
 
-    async getFoo() {
-      return await this.get(path)
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const pool = new Pool(baseURL)
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL, {
+        pool,
+      })
+    }
+    getFoo() {
+      return this.get(path)
     }
   })()
 
-  const map = new Map<string, string>()
+  const response = await dataSource.getFoo()
 
-  const config: DataSourceConfig<Record<string, unknown>> = {
-    context: {},
-    cache: {
-      async delete(key: string) {
-        return map.delete(key)
-      },
-      async get(key: string) {
-        return map.get(key)
-      },
-      async set(key: string, value: string) {
-        map.set(key, value)
-      },
-    },
-  }
-
-  dataSource.initialize(config)
-
-  let response = await dataSource.getFoo()
-
-  t.is(scopeSuccess.isDone(), true)
-  t.false(response.isFromCache)
-  t.deepEqual(response.body, { name: 'foo' })
-  t.true(map.size > 0)
-
-  dataSource = new (class extends HTTPDataSource {
-    baseURL = baseURL
-
-    async getFoo() {
-      return await this.get(path)
-    }
-  })()
-
-  dataSource.initialize(config)
-
-  response = await dataSource.getFoo()
-  t.is(scopeError.isDone(), true)
-  t.true(response.isFromCache)
   t.deepEqual(response.body, { name: 'foo' })
 })
