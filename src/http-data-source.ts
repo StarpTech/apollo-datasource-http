@@ -1,16 +1,13 @@
 import { DataSource, DataSourceConfig } from 'apollo-datasource'
 import got, {
   Agents,
-  HTTPError,
+  RequestError,
   NormalizedOptions,
   OptionsOfJSONResponseBody,
-  RequestError,
   Response,
-  CacheError,
-  UploadError,
-  ReadError,
-  MaxRedirectsError,
   GotReturn as Request,
+  HTTPError,
+  PlainResponse,
 } from 'got'
 import QuickLRU from '@alloc/quick-lru'
 import AbortController from 'abort-controller'
@@ -108,19 +105,11 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     this.abortController.abort()
   }
 
-  /**
-   * onResponse is executed after a response has been received.
-   * You can manipulate the response by returning a different response.
-   *
-   * @param response
-   * @param _request
-   * @returns
-   */
-  protected async onResponse<TResult = unknown>(
-    response: Response<TResult>,
-    _request: Request,
-  ): Promise<Response<TResult>> {
-    return response
+  protected isResponseOk(response: PlainResponse): boolean {
+    const { statusCode } = response
+    const limitStatusCode = response.request.options.followRedirect ? 299 : 399
+
+    return (statusCode >= 200 && statusCode <= limitStatusCode) || statusCode === 304
   }
 
   /**
@@ -136,21 +125,32 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   /**
-   * beforeRequest is executed before a request is made and isn't executed for memoized calls.
-   * You can manipulate the request e.g add/remove headers.
+   * onRequest is executed before a request is made and isn't executed for memoized calls.
+   * You can manipulate the request e.g to add/remove headers.
    *
    * @param request
    */
-  protected beforeRequest?(requestOptions?: RequestOptions): Promise<void>
+  protected onRequest?(requestOptions: RequestOptions): void
 
   /**
-   * onRequestError is executed for any request error.
-   * The raw error is passed. The thrown error might be different.
+   * onResponse is executed when a response has been received.
+   * By default the implementation will throw for for unsuccessful responses.
    *
    * @param _error
    * @param _request
    */
-  protected onRequestError?(_error: Error, _request?: Request): Promise<void>
+  protected onResponse<TResult = unknown>(
+    _request: Request,
+    response: Response<TResult>,
+  ): Response<TResult> {
+    if (this.isResponseOk(response)) {
+      return response
+    }
+
+    throw new HTTPError(response)
+  }
+
+  protected onError?(_error: RequestError): void
 
   protected async get<TResult = unknown>(
     url: string,
@@ -193,9 +193,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   private async performRequest<TResult>(options: NormalizedOptions) {
-    if (this.beforeRequest != null) {
-      await this.beforeRequest(options)
-    }
+    this.onRequest?.(options)
 
     const cancelableRequest = got<TResult>(options as OptionsOfJSONResponseBody)
 
@@ -207,10 +205,14 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
     try {
       const response = await cancelableRequest
-      return this.onResponse<TResult>(response, cancelableRequest)
+      this.abortController.signal.removeEventListener('abort', abort)
+      this.onResponse<TResult>(response.request, response)
+
+      return response
     } catch (error) {
       let error_ = error
 
+      // same mapping as in apollo-datasource-rest
       if (error instanceof HTTPError) {
         if (error.response.statusCode === 401) {
           const err = new AuthenticationError(error.message)
@@ -221,27 +223,19 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
           err.originalError = error
           error_ = err
         } else {
-          const err = new ApolloError(error.message)
+          const err = new ApolloError(error.message, error.code)
           err.originalError = error
           error_ = err
         }
       }
 
-      if (
-        this.onRequestError &&
-        (error instanceof RequestError ||
-          error instanceof HTTPError ||
-          error instanceof CacheError ||
-          error instanceof UploadError ||
-          error instanceof ReadError ||
-          error instanceof MaxRedirectsError)
-      ) {
-        await this.onRequestError(error, error.request)
-      }
+      // pass original error
+      this.onError?.(error)
 
-      throw error_
-    } finally {
       this.abortController.signal.removeEventListener('abort', abort)
+
+      // throw wrapped error
+      throw error_
     }
   }
 
@@ -254,6 +248,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
         cache: this.storageAdapter,
         path,
         responseType: 'json',
+        throwHttpErrors: false,
         timeout: 5000,
         agent: HTTPDataSource.agents,
         prefixUrl: this.baseURL,

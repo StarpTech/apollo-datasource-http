@@ -62,12 +62,24 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
     this.baseURL = "https://movies-api.example.com";
   })
 
-  onCacheKeyCalculation() {}
-
-  // lifecycle hooks for logging, tracing and request, response manipulation
-  async onRequestError() {}
-  async beforeRequest() {}
-  async onResponse() {}
+  onCacheKeyCalculation(requestOptions: RequestOptions): string {
+    // return different key based on request options
+  }
+  onRequest(requestOptions: RequestOptions): void {
+    // manipulate request
+  }
+  onResponse<TResult = unknown>(
+    request: Request,
+    response: Response<TResult>,
+  ): void {
+    // manipulate response or handle unsuccessful response in a different way
+    return super.onResponse(request, response)
+  }
+  onError(
+    error: RequestError
+  ): void {
+    // log errors
+  }
 
   async getMovie(id) {
     return this.get(`/movies/${id}`, {
@@ -86,10 +98,10 @@ datasource.abort()
 ## Hooks
 
 - `onCacheKeyCalculation` - Returns the cache key for request memoization.
-- `onRequestError` - Is executed only for request errors. This can be used to log or trace errors.
-- `beforeRequest` - Is executed before a request is made. This can be used to intercept requests (setting header, timeouts ...).
-- `onResponse` - Is executed on a successful response. This can be used to alter the response before it is passed to caller.
+- `onRequest` - Is executed before a request is made. This can be used to intercept requests (setting header, timeouts ...).
+- `onResponse` - Is executed when a response has been received. This can be used to alter the response before it is passed to caller or to log errors.
+- `onError` - Is executed for any error.
 
 ## Error handling
 
-The http client throws for unsuccessful responses (statusCode >= 400). In case of an request error `onRequestError` is executed. The error is then rethrown.
+The http client throws for unsuccessful responses (statusCode >= 400). In case of an request error `onError` is executed. By default the error is rethrown as an instance of `ApolloError`.

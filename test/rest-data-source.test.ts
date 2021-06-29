@@ -2,7 +2,15 @@ import { ApolloError, AuthenticationError, ForbiddenError } from 'apollo-server-
 import anyTest, { TestInterface } from 'ava'
 import { uid } from 'uid'
 import nock from 'nock'
-import { CancelError, HTTPDataSource, TimeoutError, RequestOptions, RequestError, Request } from '../src'
+import {
+  CancelError,
+  HTTPDataSource,
+  TimeoutError,
+  RequestOptions,
+  RequestError,
+  Request,
+  Response,
+} from '../src'
 import { DataSourceConfig } from 'apollo-datasource'
 
 const test = anyTest as TestInterface<{ path: string }>
@@ -136,7 +144,7 @@ test('Should be able to define a custom cache key for request memoization', asyn
     baseURL = baseURL
 
     onCacheKeyCalculation(_requestOptions: RequestOptions) {
-      t.pass('onCacheKeyCalculation');
+      t.pass('onCacheKeyCalculation')
       return 'foo'
     }
 
@@ -191,8 +199,8 @@ test('Should timeout', async (t) => {
   t.is(scope.isDone(), true)
 })
 
-test('Should call onRequestError on request error', async (t) => {
-  t.plan(5)
+test('Should call onError on request error', async (t) => {
+  t.plan(8)
 
   const baseURL = 'https://api.example.com'
   const { path } = t.context
@@ -201,10 +209,18 @@ test('Should call onRequestError on request error', async (t) => {
   const dataSource = new (class extends HTTPDataSource {
     baseURL = baseURL
 
-    async onRequestError(error: Error, request?: Request) {
-      t.true(error instanceof RequestError);
-      t.truthy(request);
-      t.pass('onRequestError');
+    onResponse<TResult = any>(request: Request, response: Response<TResult>) {
+      t.truthy(request)
+      t.truthy(response)
+      t.pass('onResponse')
+
+      return super.onResponse(request, response)
+    }
+
+    onError(error: RequestError) {
+      t.true(error instanceof RequestError)
+      t.truthy(error.request)
+      t.pass('onRequestError')
     }
 
     async getFoo() {
@@ -216,7 +232,7 @@ test('Should call onRequestError on request error', async (t) => {
     dataSource.getFoo(),
     {
       instanceOf: ApolloError,
-      message: "Response code 500 (Internal Server Error)",
+      message: 'Response code 500 (Internal Server Error)',
     },
     'Server error',
   )
@@ -281,7 +297,7 @@ test('Should be able to modify request in willSendRequest', async (t) => {
   const dataSource = new (class extends HTTPDataSource {
     baseURL = baseURL
 
-    async beforeRequest(requestOptions: RequestOptions) {
+    async onRequest(requestOptions: RequestOptions) {
       requestOptions.headers = {
         'X-Foo': 'bar',
       }

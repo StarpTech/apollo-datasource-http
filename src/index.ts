@@ -7,6 +7,7 @@ export {
   ReadError,
   ParseError,
   UploadError,
+  HTTPError,
   TimeoutError,
   RequestError,
   UnsupportedProtocolError,
