@@ -45,7 +45,7 @@ const server = new ApolloServer({
 Your implementation of these methods can call on convenience methods built into the [HTTPDataSource](./src/http-data-source.ts) class to perform HTTP requests, while making it easy to pass different options and handle errors.
 
 ```ts
-import { HTTPDataSource } from "apollo-datasource-http";
+import { HTTPDataSource } from 'apollo-datasource-http'
 
 const datasource = new (class MoviesAPI extends HTTPDataSource {
   constructor() {
@@ -55,41 +55,39 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
         timeout: 2000,
         http2: true,
         headers: {
-          "X-Client": "client",
+          'X-Client': 'client',
         },
       },
-    });
-    this.baseURL = "https://movies-api.example.com";
-  })
+    })
+    this.baseURL = 'https://movies-api.example.com'
+  }
 
   onCacheKeyCalculation(requestOptions: RequestOptions): string {
     // return different key based on request options
   }
+
   onRequest(requestOptions: RequestOptions): void {
     // manipulate request
   }
-  onResponse<TResult = unknown>(
-    request: Request,
-    response: Response<TResult>,
-  ): void {
+
+  onResponse<TResult = unknown>(request: Request, response: Response<TResult>): void {
     // manipulate response or handle unsuccessful response in a different way
     return super.onResponse(request, response)
   }
-  onError(
-    error: RequestError
-  ): void {
+
+  onError(error: RequestError): void {
     // log errors
   }
 
   async getMovie(id) {
     return this.get(`/movies/${id}`, {
       headers: {
-        "X-Foo": "bar",
+        'X-Foo': 'bar',
       },
       timeout: 3000,
-    });
+    })
   }
-}
+})()
 
 // cancel all running requests e.g when request is closed prematurely
 datasource.abort()
