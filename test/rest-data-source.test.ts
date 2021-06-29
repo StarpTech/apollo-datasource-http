@@ -79,13 +79,13 @@ test('Should error', async (t) => {
     dataSource.getFoo(),
     {
       instanceOf: Error,
-      message: 'Response code 401',
+      message: 'Response code 401 (Unauthorized)',
     },
     'Unauthenticated',
   )
 })
 
-test('Should cache subsequent GET calls to the same endpoint', async (t) => {
+test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
   t.plan(5)
 
   const path = '/'
@@ -211,7 +211,7 @@ test('Should call onError on request error', async (t) => {
     dataSource.getFoo(),
     {
       instanceOf: Error,
-      message: 'Response code 500',
+      message: 'Response code 500 (Internal Server Error)',
     },
     'Server error',
   )
@@ -447,7 +447,7 @@ test('Response is cached', async (t) => {
     getFoo() {
       return this.get(path, {
         requestCache: {
-          maxTtl: 100
+          maxTtl: 100,
         },
       })
     }
@@ -484,6 +484,66 @@ test('Response is cached', async (t) => {
   t.like(cached, { value: wanted })
 })
 
+test('Should not cache POST requests', async (t) => {
+  t.plan(3)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'POST')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    postFoo() {
+      return this.post(path, {
+        requestCache: {
+          maxTtl: 100,
+        },
+      })
+    }
+  })()
+
+  const map = new Map<string, string>()
+
+  dataSource.initialize({
+    context: {
+      a: 1,
+    },
+    cache: {
+      async delete(key: string) {
+        return map.delete(key)
+      },
+      async get(key: string) {
+        return map.get(key)
+      },
+      async set(key: string, value: string, options: KeyValueCacheSetOptions) {
+        t.deepEqual(options, { ttl: 100 })
+        map.set(key, value)
+      },
+    },
+  })
+
+  const response = await dataSource.postFoo()
+
+  t.deepEqual(response.body, { name: 'foo' })
+
+  t.is(map.size, 0)
+})
+
 test('Response is not cached due to origin error', async (t) => {
   const path = '/'
 
@@ -507,7 +567,7 @@ test('Response is not cached due to origin error', async (t) => {
     getFoo() {
       return this.get(path, {
         requestCache: {
-          maxTtl: 100
+          maxTtl: 100,
         },
       })
     }
@@ -537,7 +597,7 @@ test('Response is not cached due to origin error', async (t) => {
   await t.throwsAsync(
     dataSource.getFoo(),
     {
-      message: 'Response code 500',
+      message: 'Response code 500 (Internal Server Error)',
     },
     'message',
   )

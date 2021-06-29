@@ -1,6 +1,8 @@
 import { DataSource, DataSourceConfig } from 'apollo-datasource'
 import { Client, Pool } from 'undici'
+import { STATUS_CODES } from 'http'
 import QuickLRU from '@alloc/quick-lru'
+import sjson from 'secure-json-parse'
 import AbortController from 'abort-controller'
 
 import Keyv, { Store } from 'keyv'
@@ -128,12 +130,12 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    * @param _error
    * @param _request
    */
-  protected onResponse<TResult = unknown>(response: Response<TResult>): Response<TResult> {
+  protected onResponse<TResult = unknown>(response: Response<TResult>): Response<TResult> {    
     if (this.isResponseOk(response.statusCode)) {
       return response
     }
 
-    throw new Error(`Response code ${response.statusCode}`)
+    throw new Error(`Response code ${response.statusCode} (${STATUS_CODES[response.statusCode]})`)
   }
 
   protected onError?(_error: Error): void
@@ -203,7 +205,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
       let json
       if (data) {
-        json = JSON.parse(data)
+        json = sjson.parse(data)
       }
 
       const response: Response<TResult> = {
@@ -213,26 +215,15 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
       this.onResponse<TResult>(response)
 
-      if (cacheKey && options.requestCache) {
+      if (options.method === 'GET' && cacheKey && options.requestCache) {
         this.storageAdapter.set(cacheKey, json, options.requestCache?.maxTtl)
       }
 
       return response
     } catch (error) {
-      let error_ = error
-
-      if (cacheKey && options.requestCache) {
-        const cachedResponseBody = await this.storageAdapter.get(cacheKey)
-        if (cachedResponseBody) {
-          return cachedResponseBody
-        }
-      }
-
-      // pass original error
       this.onError?.(error)
 
-      // throw wrapped error
-      throw error_
+      throw error
     }
   }
 

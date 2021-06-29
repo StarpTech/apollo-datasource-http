@@ -55,6 +55,7 @@
     "apollo-server-caching": "^0.7.0",
     "graphql": "^15.5.0",
     "keyv": "^4.0.3",
+    "secure-json-parse": "^2.4.0",
     "undici": "^4.1.0"
   },
   "devDependencies": {
