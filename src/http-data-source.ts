@@ -19,9 +19,9 @@ export type CacheTTLOptions = {
   }
 }
 
-export type RequestOptions = Omit<DispatchOptions, 'origin' | 'path' | 'method'> & CacheTTLOptions
+export type ClientRequestOptions = Omit<DispatchOptions, 'origin' | 'path' | 'method'> & CacheTTLOptions
 
-type InternalRequestOptions = DispatchOptions & CacheTTLOptions
+export type RequestOptions = DispatchOptions & CacheTTLOptions
 
 export type Response<TResult> = {
   body: TResult
@@ -34,7 +34,7 @@ export interface LRUOptions {
 
 export interface HTTPDataSourceOptions {
   pool?: Pool
-  requestOptions?: RequestOptions
+  requestOptions?: ClientRequestOptions
   clientOptions?: Client.Options
   lru?: Partial<LRUOptions>
 }
@@ -74,7 +74,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   public context!: TContext
   private storageAdapter!: Keyv
   private readonly pool: Pool
-  private readonly globalRequestOptions?: RequestOptions
+  private readonly globalRequestOptions?: ClientRequestOptions
   private readonly abortController: AbortController
   private readonly memoizedResults: QuickLRU<string, Response<any>>
 
@@ -112,7 +112,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   protected isResponseCacheable<TResult = unknown>(
-    requestOptions: InternalRequestOptions,
+    requestOptions: RequestOptions,
     response: Response<TResult>,
   ): boolean {
     return cacheableStatusCodes.indexOf(response.statusCode) > -1 && requestOptions.method === 'GET'
@@ -125,7 +125,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    * @param request
    * @returns
    */
-  protected onCacheKeyCalculation(requestOptions: InternalRequestOptions): string {
+  protected onCacheKeyCalculation(requestOptions: RequestOptions): string {
     return requestOptions.origin + requestOptions.path
   }
 
@@ -135,16 +135,19 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    *
    * @param request
    */
-  protected onRequest?(requestOptions: RequestOptions): void
+  protected onRequest?(requestOptions: ClientRequestOptions): void
 
   /**
    * onResponse is executed when a response has been received.
    * By default the implementation will throw for for unsuccessful responses.
    *
-   * @param _error
-   * @param _request
+   * @param _requestOptions
+   * @param response
    */
-  protected onResponse<TResult = unknown>(response: Response<TResult>): Response<TResult> {
+  protected onResponse<TResult = unknown>(
+    _requestOptions: RequestOptions,
+    response: Response<TResult>,
+  ): Response<TResult> {
     if (this.isResponseOk(response.statusCode)) {
       return response
     }
@@ -155,11 +158,11 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     )
   }
 
-  protected onError?(_error: Error): void
+  protected onError?(_error: Error, requestOptions: RequestOptions): void
 
   protected async get<TResult = unknown>(
     path: string,
-    requestOptions?: RequestOptions,
+    requestOptions?: ClientRequestOptions,
   ): Promise<Response<TResult>> {
     return await this.request<TResult>({
       ...requestOptions,
@@ -171,7 +174,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
   protected async post<TResult = unknown>(
     path: string,
-    requestOptions?: RequestOptions,
+    requestOptions?: ClientRequestOptions,
   ): Promise<Response<TResult>> {
     return await this.request<TResult>({
       ...requestOptions,
@@ -183,7 +186,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
   protected async delete<TResult = unknown>(
     path: string,
-    requestOptions?: RequestOptions,
+    requestOptions?: ClientRequestOptions,
   ): Promise<Response<TResult>> {
     return await this.request<TResult>({
       ...requestOptions,
@@ -195,7 +198,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
   protected async put<TResult = unknown>(
     path: string,
-    requestOptions?: RequestOptions,
+    requestOptions?: ClientRequestOptions,
   ): Promise<Response<TResult>> {
     return await this.request<TResult>({
       ...requestOptions,
@@ -206,7 +209,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   private async performRequest<TResult>(
-    options: InternalRequestOptions,
+    options: RequestOptions,
     cacheKey: string,
   ): Promise<Response<TResult>> {
     this.onRequest?.(options)
@@ -230,7 +233,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
         body: json,
       }
 
-      this.onResponse<TResult>(response)
+      this.onResponse<TResult>(options, response)
 
       if (options.requestCache && this.isResponseCacheable<TResult>(options, response)) {
         this.storageAdapter.set(cacheKey, response, options.requestCache?.maxTtl)
@@ -243,7 +246,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
       return response
     } catch (error) {
-      this.onError?.(error)
+      this.onError?.(error, options)
 
       if (options.requestCache) {
         const hasFallback: Response<TResult> = await this.storageAdapter.get(
@@ -259,7 +262,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   private async request<TResult = unknown>(
-    requestOptions: InternalRequestOptions,
+    requestOptions: RequestOptions,
   ): Promise<Response<TResult>> {
     const cacheKey = this.onCacheKeyCalculation(requestOptions)
     const ttlCacheEnabled = requestOptions.requestCache

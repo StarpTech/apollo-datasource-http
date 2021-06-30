@@ -271,7 +271,7 @@ test('Should be able to define a custom cache key for request memoization', asyn
 })
 
 test('Should call onError on request error', async (t) => {
-  t.plan(6)
+  t.plan(7)
 
   const path = '/'
 
@@ -293,10 +293,11 @@ test('Should call onError on request error', async (t) => {
       super(baseURL)
     }
 
-    onResponse<TResult = any>(response: Response<TResult>) {
+    onResponse<TResult = any>(requestOptions: RequestOptions, response: Response<TResult>) {
+      t.truthy(requestOptions)
       t.truthy(response)
       t.pass('onResponse')
-      return super.onResponse<TResult>(response)
+      return super.onResponse<TResult>(requestOptions, response)
     }
 
     onError(error: Error) {

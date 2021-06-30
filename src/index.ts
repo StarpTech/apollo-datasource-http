@@ -1,1 +1,9 @@
-export { HTTPDataSource, HTTPDataSourceOptions, LRUOptions, RequestOptions, Response } from './http-data-source'
+export {
+  HTTPDataSource,
+  HTTPDataSourceOptions,
+  LRUOptions,
+  ClientRequestOptions,
+  Response,
+  RequestOptions,
+  CacheTTLOptions,
+} from './http-data-source'

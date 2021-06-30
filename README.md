@@ -70,12 +70,12 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
     // manipulate request before it is send
   }
 
-  onResponse<TResult = unknown>(request: Request, response: Response<TResult>): void {
+  onResponse<TResult = unknown>(request: RequestOptions, response: Response<TResult>): void {
     // manipulate response or handle unsuccessful response in a different way
     return super.onResponse(request, response)
   }
 
-  onError(error: RequestError): void {
+  onError(error: RequestError, request: RequestOptions): void {
     // log errors
   }
 
@@ -83,7 +83,7 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
     return this.get(`/movies/${id}`, {
       headers: {
         'X-Foo': 'bar',
-      }
+      },
     })
   }
 })()
