@@ -9,6 +9,7 @@ import { KeyValueCache } from 'apollo-server-caching'
 import { ResponseData, RequestOptions as UndiciRequestOptions } from 'undici/types/dispatcher'
 import { ApolloError } from 'apollo-server-errors'
 import { EventEmitter, Readable } from 'stream'
+import { Logger } from 'apollo-server-types'
 
 type AbortSignal = unknown
 
@@ -31,9 +32,10 @@ export type RequestOptions = {
   signal?: AbortSignal | EventEmitter | null
 } & CacheTTLOptions
 
-export type Request = UndiciRequestOptions & CacheTTLOptions & {
-  headers: Dictionary<string>
-}
+export type Request = UndiciRequestOptions &
+  CacheTTLOptions & {
+    headers: Dictionary<string>
+  }
 
 export type Response<TResult> = {
   body: TResult
@@ -45,6 +47,7 @@ export interface LRUOptions {
 }
 
 export interface HTTPDataSourceOptions {
+  logger?: Logger
   pool?: Pool
   requestOptions?: RequestOptions
   clientOptions?: Pool.Options
@@ -86,6 +89,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   public context!: TContext
   private storageAdapter!: Keyv
   private pool: Pool
+  private logger?: Logger
   private globalRequestOptions?: RequestOptions
   private readonly memoizedResults: QuickLRU<string, Response<any>>
 
@@ -96,6 +100,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     })
     this.pool = options?.pool ?? new Pool(this.baseURL, options?.clientOptions)
     this.globalRequestOptions = options?.requestOptions
+    this.logger = options?.logger
   }
 
   /**
@@ -243,12 +248,13 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       this.onResponse<TResult>(options, response)
 
       if (options.requestCache && this.isResponseCacheable<TResult>(options, response)) {
-        this.storageAdapter.set(cacheKey, response, options.requestCache?.maxTtl)
-        this.storageAdapter.set(
-          `staleIfError:${cacheKey}`,
-          response,
-          options.requestCache?.maxTtlIfError,
-        )
+        // TODO log errors with external logger
+        this.storageAdapter
+          .set(cacheKey, response, options.requestCache?.maxTtl)
+          .catch((err) => this.logger?.error(err))
+        this.storageAdapter
+          .set(`staleIfError:${cacheKey}`, response, options.requestCache?.maxTtlIfError)
+          .catch((err) => this.logger?.error(err))
       }
 
       return response
