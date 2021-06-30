@@ -1,14 +1,16 @@
 import { DataSource, DataSourceConfig } from 'apollo-datasource'
-import { Client, Pool } from 'undici'
+import { Pool } from 'undici'
 import { STATUS_CODES } from 'http'
 import QuickLRU from '@alloc/quick-lru'
 import sjson from 'secure-json-parse'
-import AbortController from 'abort-controller'
 
 import Keyv, { Store } from 'keyv'
 import { KeyValueCache } from 'apollo-server-caching'
-import { DispatchOptions, ResponseData } from 'undici/types/dispatcher'
+import { ResponseData, RequestOptions as UndiciRequestOptions } from 'undici/types/dispatcher'
 import { ApolloError } from 'apollo-server-errors'
+import { EventEmitter, Readable } from 'stream'
+
+type AbortSignal = unknown
 
 export type CacheTTLOptions = {
   requestCache?: {
@@ -19,9 +21,19 @@ export type CacheTTLOptions = {
   }
 }
 
-export type ClientRequestOptions = Omit<DispatchOptions, 'origin' | 'path' | 'method'> & CacheTTLOptions
+interface Dictionary<T> {
+  [Key: string]: T
+}
 
-export type RequestOptions = DispatchOptions & CacheTTLOptions
+export type RequestOptions = {
+  body?: string | Buffer | Uint8Array | Readable | null
+  headers?: Dictionary<string>
+  signal?: AbortSignal | EventEmitter | null
+} & CacheTTLOptions
+
+export type Request = UndiciRequestOptions & CacheTTLOptions & {
+  headers: Dictionary<string>
+}
 
 export type Response<TResult> = {
   body: TResult
@@ -34,8 +46,8 @@ export interface LRUOptions {
 
 export interface HTTPDataSourceOptions {
   pool?: Pool
-  requestOptions?: ClientRequestOptions
-  clientOptions?: Client.Options
+  requestOptions?: RequestOptions
+  clientOptions?: Pool.Options
   lru?: Partial<LRUOptions>
 }
 
@@ -73,9 +85,8 @@ const cacheableStatusCodes = [200, 201, 202, 203, 206]
 export abstract class HTTPDataSource<TContext = any> extends DataSource {
   public context!: TContext
   private storageAdapter!: Keyv
-  private readonly pool: Pool
-  private readonly globalRequestOptions?: ClientRequestOptions
-  private readonly abortController: AbortController
+  private pool: Pool
+  private globalRequestOptions?: RequestOptions
   private readonly memoizedResults: QuickLRU<string, Response<any>>
 
   constructor(public readonly baseURL: string, private readonly options?: HTTPDataSourceOptions) {
@@ -85,7 +96,6 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     })
     this.pool = options?.pool ?? new Pool(this.baseURL, options?.clientOptions)
     this.globalRequestOptions = options?.requestOptions
-    this.abortController = new AbortController()
   }
 
   /**
@@ -100,22 +110,15 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     })
   }
 
-  /**
-   * Abort and signal to any request that the associated activity is to be aborted.
-   */
-  abort() {
-    this.abortController.abort()
-  }
-
   protected isResponseOk(statusCode: number): boolean {
     return (statusCode >= 200 && statusCode <= 399) || statusCode === 304
   }
 
   protected isResponseCacheable<TResult = unknown>(
-    requestOptions: RequestOptions,
+    request: Request,
     response: Response<TResult>,
   ): boolean {
-    return cacheableStatusCodes.indexOf(response.statusCode) > -1 && requestOptions.method === 'GET'
+    return cacheableStatusCodes.indexOf(response.statusCode) > -1 && request.method === 'GET'
   }
 
   /**
@@ -125,8 +128,8 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    * @param request
    * @returns
    */
-  protected onCacheKeyCalculation(requestOptions: RequestOptions): string {
-    return requestOptions.origin + requestOptions.path
+  protected onCacheKeyCalculation(request: Request): string {
+    return request.origin + request.path
   }
 
   /**
@@ -135,17 +138,17 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    *
    * @param request
    */
-  protected onRequest?(requestOptions: RequestOptions): void
+  protected onRequest?(request: Request): void
 
   /**
    * onResponse is executed when a response has been received.
    * By default the implementation will throw for for unsuccessful responses.
    *
-   * @param _requestOptions
+   * @param _request
    * @param response
    */
   protected onResponse<TResult = unknown>(
-    _requestOptions: RequestOptions,
+    _request: Request,
     response: Response<TResult>,
   ): Response<TResult> {
     if (this.isResponseOk(response.statusCode)) {
@@ -158,13 +161,14 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     )
   }
 
-  protected onError?(_error: Error, requestOptions: RequestOptions): void
+  protected onError?(_error: Error, requestOptions: Request): void
 
   protected async get<TResult = unknown>(
     path: string,
-    requestOptions?: ClientRequestOptions,
+    requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
     return await this.request<TResult>({
+      headers: {},
       ...requestOptions,
       method: 'GET',
       path,
@@ -174,9 +178,10 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
   protected async post<TResult = unknown>(
     path: string,
-    requestOptions?: ClientRequestOptions,
+    requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
     return await this.request<TResult>({
+      headers: {},
       ...requestOptions,
       method: 'POST',
       path,
@@ -186,9 +191,10 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
   protected async delete<TResult = unknown>(
     path: string,
-    requestOptions?: ClientRequestOptions,
+    requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
     return await this.request<TResult>({
+      headers: {},
       ...requestOptions,
       method: 'DELETE',
       path,
@@ -198,9 +204,10 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
   protected async put<TResult = unknown>(
     path: string,
-    requestOptions?: ClientRequestOptions,
+    requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
     return await this.request<TResult>({
+      headers: {},
       ...requestOptions,
       method: 'PUT',
       path,
@@ -209,7 +216,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   private async performRequest<TResult>(
-    options: RequestOptions,
+    options: Request,
     cacheKey: string,
   ): Promise<Response<TResult>> {
     this.onRequest?.(options)
@@ -261,14 +268,12 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     }
   }
 
-  private async request<TResult = unknown>(
-    requestOptions: RequestOptions,
-  ): Promise<Response<TResult>> {
-    const cacheKey = this.onCacheKeyCalculation(requestOptions)
-    const ttlCacheEnabled = requestOptions.requestCache
+  private async request<TResult = unknown>(request: Request): Promise<Response<TResult>> {
+    const cacheKey = this.onCacheKeyCalculation(request)
+    const ttlCacheEnabled = request.requestCache
 
     // check if we have any GET call in the cache and respond immediatly
-    if (requestOptions.method === 'GET' && ttlCacheEnabled) {
+    if (request.method === 'GET' && ttlCacheEnabled) {
       const cachedResponse = await this.storageAdapter.get(cacheKey)
       if (cachedResponse) {
         return cachedResponse
@@ -277,8 +282,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
     const options = {
       ...this.globalRequestOptions,
-      ...requestOptions,
-      signal: this.abortController.signal,
+      ...request,
     }
 
     // Memoize GET calls for the same data source instance

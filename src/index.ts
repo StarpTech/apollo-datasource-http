@@ -2,8 +2,8 @@ export {
   HTTPDataSource,
   HTTPDataSourceOptions,
   LRUOptions,
-  ClientRequestOptions,
-  Response,
   RequestOptions,
+  Response,
+  Request,
   CacheTTLOptions,
 } from './http-data-source'

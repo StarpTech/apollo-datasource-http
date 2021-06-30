@@ -1,7 +1,8 @@
 import anyTest, { TestInterface } from 'ava'
 import http from 'http'
 import { setGlobalDispatcher, Agent, Pool } from 'undici'
-import { HTTPDataSource, RequestOptions, Response } from '../src'
+import AbortController from 'abort-controller'
+import { HTTPDataSource, Request, Response } from '../src'
 import { AddressInfo } from 'net'
 import { KeyValueCacheSetOptions } from 'apollo-server-caching'
 
@@ -253,9 +254,9 @@ test('Should be able to define a custom cache key for request memoization', asyn
     constructor() {
       super(baseURL)
     }
-    onCacheKeyCalculation(requestOptions: RequestOptions) {
+    onCacheKeyCalculation(request: Request) {
       t.pass('onCacheKeyCalculation')
-      t.truthy(requestOptions)
+      t.truthy(request)
       return 'foo'
     }
     getFoo() {
@@ -293,7 +294,7 @@ test('Should call onError on request error', async (t) => {
       super(baseURL)
     }
 
-    onResponse<TResult = any>(requestOptions: RequestOptions, response: Response<TResult>) {
+    onResponse<TResult = any>(requestOptions: Request, response: Response<TResult>) {
       t.truthy(requestOptions)
       t.truthy(response)
       t.pass('onResponse')
@@ -342,13 +343,17 @@ test.cb('Should abort request', (t) => {
 
   const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
 
+  const abortController = new AbortController()
+
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
       super(baseURL)
     }
 
     async getFoo() {
-      return await this.get(path)
+      return await this.get(path, {
+        signal: abortController.signal,
+      })
     }
   })()
 
@@ -369,7 +374,7 @@ test.cb('Should abort request', (t) => {
     'Timeout',
   ).finally(t.end)
 
-  dataSource.abort()
+  abortController.abort()
 })
 
 test.cb('Should timeout', (t) => {
@@ -452,8 +457,8 @@ test('Should be able to modify request in willSendRequest', async (t) => {
     constructor() {
       super(baseURL)
     }
-    onRequest(requestOptions: RequestOptions) {
-      requestOptions.headers = {
+    onRequest(request: Request) {
+      request.headers = {
         'X-Foo': 'bar',
       }
     }

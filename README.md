@@ -62,20 +62,20 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
     })
   }
 
-  onCacheKeyCalculation(requestOptions: RequestOptions): string {
+  onCacheKeyCalculation(request: Request): string {
     // return different key based on request options
   }
 
-  onRequest(requestOptions: RequestOptions): void {
+  onRequest(request: Request): void {
     // manipulate request before it is send
   }
 
-  onResponse<TResult = unknown>(request: RequestOptions, response: Response<TResult>): void {
+  onResponse<TResult = unknown>(request: Request, response: Response<TResult>): void {
     // manipulate response or handle unsuccessful response in a different way
     return super.onResponse(request, response)
   }
 
-  onError(error: RequestError, request: RequestOptions): void {
+  onError(error: RequestError, request: Request): void {
     // log errors
   }
 
