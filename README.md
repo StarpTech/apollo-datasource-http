@@ -5,7 +5,7 @@
 Optimized JSON HTTP Data Source for Apollo Server
 
 - Uses [Undici](https://github.com/nodejs/undici) under the hood
-- Request Deduplication (LRU), Request Cache (TTL) and `stale-if-error` Cache (LRU)
+- Request Deduplication (LRU), Request Cache (TTL) and `stale-if-error` Cache (TTL)
 - Support [AbortController ](https://github.com/mysticatea/abort-controller) to manually cancel all running requests
 - Support for [Apollo Cache Storage backend](https://www.apollographql.com/docs/apollo-server/data/data-sources/#using-memcachedredis-as-a-cache-storage-backend)
 
@@ -102,3 +102,14 @@ datasource.abort()
 ## Error handling
 
 The http client throws for unsuccessful responses (statusCode >= 400). In case of an request error `onError` is executed. By default the error is rethrown in form of the original error.
+
+## Production checklist
+
+This setup is in use with Redis. If you use Redis ensure that limits are set:
+
+```
+maxmemory 10mb
+maxmemory-policy allkeys-lru
+```
+
+This will limit the cache to 10MB and removes the least recently used keys from the cache when the cache hits the limits.
