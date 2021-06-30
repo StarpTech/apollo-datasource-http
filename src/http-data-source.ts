@@ -135,7 +135,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    *
    * @param request
    */
-  protected onRequest?(requestOptions: ClientRequestOptions): void
+  protected onRequest?(requestOptions: RequestOptions): void
 
   /**
    * onResponse is executed when a response has been received.
