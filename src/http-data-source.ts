@@ -8,10 +8,14 @@ import AbortController from 'abort-controller'
 import Keyv, { Store } from 'keyv'
 import { KeyValueCache } from 'apollo-server-caching'
 import { DispatchOptions, ResponseData } from 'undici/types/dispatcher'
+import { ApolloError } from 'apollo-server-errors'
 
 export type CacheTTLOptions = {
   requestCache?: {
+    // The maximum time an item is cached
     maxTtl: number
+    // The maximum time an item fetched from the cache is case of an error. This value must be greater than `maxTtl`.
+    maxTtlIfError: number
   }
 }
 
@@ -130,12 +134,15 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    * @param _error
    * @param _request
    */
-  protected onResponse<TResult = unknown>(response: Response<TResult>): Response<TResult> {    
+  protected onResponse<TResult = unknown>(response: Response<TResult>): Response<TResult> {
     if (this.isResponseOk(response.statusCode)) {
       return response
     }
 
-    throw new Error(`Response code ${response.statusCode} (${STATUS_CODES[response.statusCode]})`)
+    throw new ApolloError(
+      `Response code ${response.statusCode} (${STATUS_CODES[response.statusCode]})`,
+      response.statusCode.toString(),
+    )
   }
 
   protected onError?(_error: Error): void
@@ -190,7 +197,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
   private async performRequest<TResult>(
     options: InternalRequestOptions,
-    cacheKey?: string,
+    cacheKey: string,
   ): Promise<Response<TResult>> {
     this.onRequest?.(options)
 
@@ -216,12 +223,26 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       this.onResponse<TResult>(response)
 
       if (options.method === 'GET' && cacheKey && options.requestCache) {
-        this.storageAdapter.set(cacheKey, json, options.requestCache?.maxTtl)
+        this.storageAdapter.set(cacheKey, response, options.requestCache?.maxTtl)
+        this.storageAdapter.set(
+          `staleIfError:${cacheKey}`,
+          response,
+          options.requestCache?.maxTtlIfError,
+        )
       }
 
       return response
     } catch (error) {
       this.onError?.(error)
+
+      if (options.requestCache) {
+        const hasFallback: Response<TResult> = await this.storageAdapter.get(
+          `staleIfError:${cacheKey}`,
+        )
+        if (hasFallback) {
+          return hasFallback
+        }
+      }
 
       throw error
     }

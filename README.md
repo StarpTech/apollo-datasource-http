@@ -5,7 +5,7 @@
 Optimized JSON HTTP Data Source for Apollo Server
 
 - Uses [Undici](https://github.com/nodejs/undici) under the hood
-- Request Deduplication and Request Cache (TTL)
+- Request Deduplication (LRU), Request Cache (TTL) and `stale-if-error` Cache (LRU)
 - Support [AbortController ](https://github.com/mysticatea/abort-controller) to manually cancel all running requests
 - Support for [Apollo Cache Storage backend](https://www.apollographql.com/docs/apollo-server/data/data-sources/#using-memcachedredis-as-a-cache-storage-backend)
 
@@ -24,7 +24,7 @@ npm install apollo-datasource-http
 To define a data source, extend the [`HTTPDataSource`](./src/http-data-source.ts) class and implement the data fetching methods that your resolvers require. Data sources can then be provided via the `dataSources` property to the `ApolloServer` constructor, as demonstrated in the section below.
 
 ```ts
-
+// instantiate a pool outside of your hotpath
 const baseURL = 'https://movies-api.example.com'
 const pool = new Pool(baseURL)
 

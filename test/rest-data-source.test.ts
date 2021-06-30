@@ -278,7 +278,7 @@ test.cb('Should timeout', (t) => {
     .createServer((req, res) => {
       t.is(req.method, 'GET')
       setTimeout(() => {
-        res.writeHead(300)
+        res.writeHead(200)
         res.end()
         res.socket?.unref()
       }, 500)
@@ -421,7 +421,7 @@ test('Initialize data source with cache and context', async (t) => {
 })
 
 test('Response is cached', async (t) => {
-  t.plan(6)
+  t.plan(5)
 
   const path = '/'
 
@@ -448,6 +448,7 @@ test('Response is cached', async (t) => {
       return this.get(path, {
         requestCache: {
           maxTtl: 100,
+          maxTtlIfError: 200,
         },
       })
     }
@@ -466,8 +467,7 @@ test('Response is cached', async (t) => {
       async get(key: string) {
         return map.get(key)
       },
-      async set(key: string, value: string, options: KeyValueCacheSetOptions) {
-        t.deepEqual(options, { ttl: 100 })
+      async set(key: string, value: string) {
         map.set(key, value)
       },
     },
@@ -479,9 +479,113 @@ test('Response is cached', async (t) => {
 
   const cached = JSON.parse(map.get('keyv:' + baseURL + path)!)
 
-  t.is(map.size, 1)
+  t.is(map.size, 2)
   t.truthy(cached.expires)
-  t.like(cached, { value: wanted })
+  t.like(cached, {
+    value: {
+      statusCode: 200,
+      trailers: {},
+      opaque: null,
+      headers: {
+        connection: 'keep-alive',
+        'keep-alive': 'timeout=5',
+        'transfer-encoding': 'chunked',
+      },
+      body: wanted,
+    },
+  })
+})
+
+test('Fallback from cache on origin error', async (t) => {
+  t.plan(6)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  let reqCount = 0
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+
+    if (reqCount === 0) res.writeHead(200)
+    else res.writeHead(500)
+
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+    reqCount++
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  let dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path, {
+        requestCache: {
+          maxTtl: 100,
+          maxTtlIfError: 200,
+        },
+      })
+    }
+  })()
+
+  const map = new Map<string, string>()
+  const datasSourceConfig = {
+    context: {
+      a: 1,
+    },
+    cache: {
+      async delete(key: string) {
+        return map.delete(key)
+      },
+      async get(key: string) {
+        return map.get(key)
+      },
+      async set(key: string, value: string) {
+        map.set(key, value)
+      },
+    },
+  }
+
+  dataSource.initialize(datasSourceConfig)
+
+  let response = await dataSource.getFoo()
+
+  t.deepEqual(response.body, { name: 'foo' })
+
+  t.is(map.size, 2)
+
+  map.delete('keyv:' + baseURL + path) // ttl is up
+
+  dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path, {
+        requestCache: {
+          maxTtl: 100,
+          maxTtlIfError: 200,
+        },
+      })
+    }
+  })()
+
+  dataSource.initialize(datasSourceConfig)
+
+  response = await dataSource.getFoo()
+
+  t.deepEqual(response.body, { name: 'foo' })
+
+  t.is(map.size, 1)
 })
 
 test('Should not cache POST requests', async (t) => {
@@ -512,6 +616,7 @@ test('Should not cache POST requests', async (t) => {
       return this.post(path, {
         requestCache: {
           maxTtl: 100,
+          maxTtlIfError: 200,
         },
       })
     }
@@ -568,6 +673,7 @@ test('Response is not cached due to origin error', async (t) => {
       return this.get(path, {
         requestCache: {
           maxTtl: 100,
+          maxTtlIfError: 200,
         },
       })
     }
