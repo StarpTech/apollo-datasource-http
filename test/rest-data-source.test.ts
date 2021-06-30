@@ -421,7 +421,7 @@ test('Initialize data source with cache and context', async (t) => {
 })
 
 test('Response is cached', async (t) => {
-  t.plan(5)
+  t.plan(6)
 
   const path = '/'
 
@@ -473,7 +473,11 @@ test('Response is cached', async (t) => {
     },
   })
 
-  const response = await dataSource.getFoo()
+  let response = await dataSource.getFoo()
+
+  t.deepEqual(response.body, { name: 'foo' })
+
+  response = await dataSource.getFoo()
 
   t.deepEqual(response.body, { name: 'foo' })
 
