@@ -53,8 +53,8 @@ export interface HTTPDataSourceOptions {
 
 function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
   return {
-    async get(key: string) {
-      return await cache.get(key)
+    get(key: string) {
+      return cache.get(key)
     },
     clear() {
       throw new Error('clear() method is not supported by apollo key value cache')
@@ -67,8 +67,8 @@ function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
 
       return true
     },
-    async set(key: string, value: string, ttl?: number) {
-      return await cache.set(key, value, {
+    set(key: string, value: string, ttl?: number) {
+      return cache.set(key, value, {
         ttl,
       })
     },

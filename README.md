@@ -84,6 +84,10 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
       headers: {
         'X-Foo': 'bar',
       },
+      requestCache: {
+        maxTtl: 1000 * 60 * 10, // 10min, will respond for 10min with the cached result (updated every 10min)
+        maxTtlIfError: 1000 * 60 * 30, // 30min, will respond in an error case with the cached response (for further 20min)
+      },
     })
   }
 })()
