@@ -63,6 +63,9 @@ function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
   }
 }
 
+// https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#2xx_success
+const cacheableStatusCodes = [200, 201, 202, 203, 206]
+
 /**
  * HTTPDataSource is an optimized HTTP Data Source for Apollo Server
  * It focus on reliability and performance.
@@ -106,6 +109,13 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
   protected isResponseOk(statusCode: number): boolean {
     return (statusCode >= 200 && statusCode <= 399) || statusCode === 304
+  }
+
+  protected isResponseCacheable<TResult = unknown>(
+    requestOptions: InternalRequestOptions,
+    response: Response<TResult>,
+  ): boolean {
+    return cacheableStatusCodes.indexOf(response.statusCode) > -1 && requestOptions.method === 'GET'
   }
 
   /**
@@ -222,11 +232,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
       this.onResponse<TResult>(response)
 
-      if (
-        this.isResponseOk(response.statusCode) &&
-        options.method === 'GET' &&
-        options.requestCache
-      ) {
+      if (options.requestCache && this.isResponseCacheable<TResult>(options, response)) {
         this.storageAdapter.set(cacheKey, response, options.requestCache?.maxTtl)
         this.storageAdapter.set(
           `staleIfError:${cacheKey}`,
@@ -282,7 +288,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
       const response = await this.performRequest<TResult>(options, cacheKey)
 
-      if (this.isResponseOk(response.statusCode)) {
+      if (this.isResponseCacheable<TResult>(options, response)) {
         this.memoizedResults.set(cacheKey, response)
       }
 
