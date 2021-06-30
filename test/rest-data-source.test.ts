@@ -48,6 +48,108 @@ test('Should be able to make a simple GET call', async (t) => {
   t.deepEqual(response.body, { name: 'foo' })
 })
 
+test('Should be able to make a simple POST call', async (t) => {
+  t.plan(2)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'POST')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    postFoo() {
+      return this.post(path)
+    }
+  })()
+
+  const response = await dataSource.postFoo()
+
+  t.deepEqual(response.body, { name: 'foo' })
+})
+
+test('Should be able to make a simple DELETE call', async (t) => {
+  t.plan(2)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'DELETE')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    deleteFoo() {
+      return this.delete(path)
+    }
+  })()
+
+  const response = await dataSource.deleteFoo()
+
+  t.deepEqual(response.body, { name: 'foo' })
+})
+
+test('Should be able to make a simple PUT call', async (t) => {
+  t.plan(2)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'PUT')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    putFoo() {
+      return this.put(path)
+    }
+  })()
+
+  const response = await dataSource.putFoo()
+
+  t.deepEqual(response.body, { name: 'foo' })
+})
+
 test('Should error', async (t) => {
   t.plan(2)
 
