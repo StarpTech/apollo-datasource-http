@@ -1,33 +1,41 @@
 import { DataSource, DataSourceConfig } from 'apollo-datasource'
-import got, {
-  Agents,
-  RequestError,
-  NormalizedOptions,
-  OptionsOfJSONResponseBody,
-  Response,
-  GotReturn as Request,
-  HTTPError,
-  PlainResponse,
-} from 'got'
+import { Client, Pool } from 'undici'
+import { STATUS_CODES } from 'http'
 import QuickLRU from '@alloc/quick-lru'
+import sjson from 'secure-json-parse'
 import AbortController from 'abort-controller'
 
-import HttpAgent from 'agentkeepalive'
-
-import { ApolloError, AuthenticationError, ForbiddenError } from 'apollo-server-errors'
 import Keyv, { Store } from 'keyv'
 import { KeyValueCache } from 'apollo-server-caching'
+import { DispatchOptions, ResponseData } from 'undici/types/dispatcher'
+import { ApolloError } from 'apollo-server-errors'
 
-const { HttpsAgent } = HttpAgent
+export type CacheTTLOptions = {
+  requestCache?: {
+    // The maximum time an item is cached
+    maxTtl: number
+    // The maximum time an item fetched from the cache is case of an error. This value must be greater than `maxTtl`.
+    maxTtlIfError: number
+  }
+}
 
-export type RequestOptions = OptionsOfJSONResponseBody | NormalizedOptions
+export type RequestOptions = Omit<DispatchOptions, 'origin' | 'path' | 'method'> & CacheTTLOptions
+
+type InternalRequestOptions = DispatchOptions & CacheTTLOptions
+
+export type Response<TResult> = {
+  body: TResult
+} & Omit<ResponseData, 'body'>
+
 export interface LRUOptions {
   readonly maxAge?: number
   readonly maxSize: number
 }
 
 export interface HTTPDataSourceOptions {
-  requestOptions?: Partial<RequestOptions>
+  pool?: Pool
+  requestOptions?: RequestOptions
+  clientOptions?: Client.Options
   lru?: Partial<LRUOptions>
 }
 
@@ -55,34 +63,28 @@ function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
   }
 }
 
+// https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#2xx_success
+const cacheableStatusCodes = [200, 201, 202, 203, 206]
+
 /**
  * HTTPDataSource is an optimized HTTP Data Source for Apollo Server
  * It focus on reliability and performance.
  */
 export abstract class HTTPDataSource<TContext = any> extends DataSource {
-  private static readonly agents: Agents = {
-    http: new HttpAgent({
-      keepAlive: true,
-      // New default starting with Node 16
-      scheduling: 'lifo',
-    }),
-    https: new HttpsAgent({
-      keepAlive: true,
-      scheduling: 'lifo',
-    }),
-  }
-
-  public baseURL?: string
   public context!: TContext
   private storageAdapter!: Keyv
+  private readonly pool: Pool
+  private readonly globalRequestOptions?: RequestOptions
   private readonly abortController: AbortController
   private readonly memoizedResults: QuickLRU<string, Response<any>>
 
-  constructor(private readonly options?: HTTPDataSourceOptions) {
+  constructor(public readonly baseURL: string, private readonly options?: HTTPDataSourceOptions) {
     super()
     this.memoizedResults = new QuickLRU({
       maxSize: this.options?.lru?.maxSize ? this.options.lru.maxSize : 100,
     })
+    this.pool = options?.pool ?? new Pool(this.baseURL, options?.clientOptions)
+    this.globalRequestOptions = options?.requestOptions
     this.abortController = new AbortController()
   }
 
@@ -105,11 +107,15 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     this.abortController.abort()
   }
 
-  protected isResponseOk(response: PlainResponse): boolean {
-    const { statusCode } = response
-    const limitStatusCode = response.request.options.followRedirect ? 299 : 399
+  protected isResponseOk(statusCode: number): boolean {
+    return (statusCode >= 200 && statusCode <= 399) || statusCode === 304
+  }
 
-    return (statusCode >= 200 && statusCode <= limitStatusCode) || statusCode === 304
+  protected isResponseCacheable<TResult = unknown>(
+    requestOptions: InternalRequestOptions,
+    response: Response<TResult>,
+  ): boolean {
+    return cacheableStatusCodes.indexOf(response.statusCode) > -1 && requestOptions.method === 'GET'
   }
 
   /**
@@ -119,9 +125,8 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    * @param request
    * @returns
    */
-  protected onCacheKeyCalculation(requestOptions: RequestOptions): string {
-    if (requestOptions.url) return requestOptions.url.toString()
-    throw new Error('No Cache key provided')
+  protected onCacheKeyCalculation(requestOptions: InternalRequestOptions): string {
+    return requestOptions.origin + requestOptions.path
   }
 
   /**
@@ -139,139 +144,157 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    * @param _error
    * @param _request
    */
-  protected onResponse<TResult = unknown>(
-    _request: Request,
-    response: Response<TResult>,
-  ): Response<TResult> {
-    if (this.isResponseOk(response)) {
+  protected onResponse<TResult = unknown>(response: Response<TResult>): Response<TResult> {
+    if (this.isResponseOk(response.statusCode)) {
       return response
     }
 
-    throw new HTTPError(response)
+    throw new ApolloError(
+      `Response code ${response.statusCode} (${STATUS_CODES[response.statusCode]})`,
+      response.statusCode.toString(),
+    )
   }
 
-  protected onError?(_error: RequestError): void
+  protected onError?(_error: Error): void
 
   protected async get<TResult = unknown>(
-    url: string,
+    path: string,
     requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
-    return await this.request(url, {
-      method: 'GET',
+    return await this.request<TResult>({
       ...requestOptions,
+      method: 'GET',
+      path,
+      origin: this.baseURL,
     })
   }
 
   protected async post<TResult = unknown>(
-    url: string,
+    path: string,
     requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
-    return await this.request(url, {
-      method: 'POST',
+    return await this.request<TResult>({
       ...requestOptions,
+      method: 'POST',
+      path,
+      origin: this.baseURL,
     })
   }
 
   protected async delete<TResult = unknown>(
-    url: string,
+    path: string,
     requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
-    return await this.request(url, {
-      method: 'DELETE',
+    return await this.request<TResult>({
       ...requestOptions,
+      method: 'DELETE',
+      path,
+      origin: this.baseURL,
     })
   }
 
   protected async put<TResult = unknown>(
-    url: string,
+    path: string,
     requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
-    return await this.request(url, {
-      method: 'PUT',
+    return await this.request<TResult>({
       ...requestOptions,
+      method: 'PUT',
+      path,
+      origin: this.baseURL,
     })
   }
 
-  private async performRequest<TResult>(options: NormalizedOptions) {
+  private async performRequest<TResult>(
+    options: InternalRequestOptions,
+    cacheKey: string,
+  ): Promise<Response<TResult>> {
     this.onRequest?.(options)
 
-    const cancelableRequest = got<TResult>(options as OptionsOfJSONResponseBody)
-
-    const abort = () => {
-      cancelableRequest.cancel('abortController')
-    }
-
-    this.abortController.signal.addEventListener('abort', abort)
-
     try {
-      const response = await cancelableRequest
-      this.abortController.signal.removeEventListener('abort', abort)
-      this.onResponse<TResult>(response.request, response)
+      const responseData = await this.pool.request(options)
+
+      responseData.body.setEncoding('utf8')
+      let data = ''
+      for await (const chunk of responseData.body) {
+        data += chunk
+      }
+
+      let json
+      if (data) {
+        json = sjson.parse(data)
+      }
+
+      const response: Response<TResult> = {
+        ...responseData,
+        body: json,
+      }
+
+      this.onResponse<TResult>(response)
+
+      if (options.requestCache && this.isResponseCacheable<TResult>(options, response)) {
+        this.storageAdapter.set(cacheKey, response, options.requestCache?.maxTtl)
+        this.storageAdapter.set(
+          `staleIfError:${cacheKey}`,
+          response,
+          options.requestCache?.maxTtlIfError,
+        )
+      }
 
       return response
     } catch (error) {
-      let error_ = error
+      this.onError?.(error)
 
-      // same mapping as in apollo-datasource-rest
-      if (error instanceof HTTPError) {
-        if (error.response.statusCode === 401) {
-          const err = new AuthenticationError(error.message)
-          err.originalError = error
-          error_ = err
-        } else if (error.response.statusCode === 403) {
-          const err = new ForbiddenError(error.message)
-          err.originalError = error
-          error_ = err
-        } else {
-          const err = new ApolloError(error.message, error.code)
-          err.originalError = error
-          error_ = err
+      if (options.requestCache) {
+        const hasFallback: Response<TResult> = await this.storageAdapter.get(
+          `staleIfError:${cacheKey}`,
+        )
+        if (hasFallback) {
+          return hasFallback
         }
       }
 
-      // pass original error
-      this.onError?.(error)
-
-      this.abortController.signal.removeEventListener('abort', abort)
-
-      // throw wrapped error
-      throw error_
+      throw error
     }
   }
 
   private async request<TResult = unknown>(
-    path: string,
-    requestOptions: RequestOptions,
+    requestOptions: InternalRequestOptions,
   ): Promise<Response<TResult>> {
-    const options = got.mergeOptions(
-      {
-        cache: this.storageAdapter,
-        path,
-        responseType: 'json',
-        throwHttpErrors: false,
-        timeout: 5000,
-        agent: HTTPDataSource.agents,
-        prefixUrl: this.baseURL,
-      },
-      {
-        ...this.options?.requestOptions,
-      },
-      requestOptions,
-    )
+    const cacheKey = this.onCacheKeyCalculation(requestOptions)
+    const ttlCacheEnabled = requestOptions.requestCache
 
-    const cacheKey = this.onCacheKeyCalculation(options)
+    // check if we have any GET call in the cache and respond immediatly
+    if (requestOptions.method === 'GET' && ttlCacheEnabled) {
+      const cachedResponse = await this.storageAdapter.get(cacheKey)
+      if (cachedResponse) {
+        return cachedResponse
+      }
+    }
 
-    // Memoize get call for the same data source instance
-    // data sources are scoped to the current request
+    const options = {
+      ...this.globalRequestOptions,
+      ...requestOptions,
+      signal: this.abortController.signal,
+    }
+
+    // Memoize GET calls for the same data source instance
+    // a single instance of the data sources is scoped to one graphql request
     if (options.method === 'GET') {
       const cachedResponse = this.memoizedResults.get(cacheKey)
-      if (cachedResponse) return cachedResponse
+      if (cachedResponse) {
+        return cachedResponse
+      }
 
-      const response = await this.performRequest<TResult>(options)
-      this.memoizedResults.set(cacheKey, response)
+      const response = await this.performRequest<TResult>(options, cacheKey)
+
+      if (this.isResponseCacheable<TResult>(options, response)) {
+        this.memoizedResults.set(cacheKey, response)
+      }
+
       return response
     }
 
-    return this.performRequest<TResult>(options)
+    return this.performRequest<TResult>(options, cacheKey)
   }
 }

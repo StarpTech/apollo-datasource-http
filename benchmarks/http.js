@@ -1,6 +1,7 @@
 // mostly copied from  https://github.com/Ethan-Arrowood/undici-fetch/blob/main/benchmarks/index.js
 
 const { createServer } = require('http')
+const { Client, Pool, errors } = require('undici')
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads')
 
 function printResults(results, n) {
@@ -71,10 +72,15 @@ if (isMainThread) {
   let factory = null
   switch (clientType) {
     case 'apollo-datasource-http (http1)': {
+      const pool = new Pool(url)
       const { HTTPDataSource } = require('..')
       factory = () => {
         return new (class MoviesAPI extends HTTPDataSource {
-          baseURL = url
+          constructor() {
+            super(url, {
+              pool
+            })
+          }
           async getFoo(path) {
             return this.get(path)
           }
