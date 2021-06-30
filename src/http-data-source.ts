@@ -222,7 +222,11 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
       this.onResponse<TResult>(response)
 
-      if (options.method === 'GET' && cacheKey && options.requestCache) {
+      if (
+        this.isResponseOk(response.statusCode) &&
+        options.method === 'GET' &&
+        options.requestCache
+      ) {
         this.storageAdapter.set(cacheKey, response, options.requestCache?.maxTtl)
         this.storageAdapter.set(
           `staleIfError:${cacheKey}`,
@@ -254,7 +258,8 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     const cacheKey = this.onCacheKeyCalculation(requestOptions)
     const ttlCacheEnabled = requestOptions.requestCache
 
-    if (ttlCacheEnabled) {
+    // check if we have any GET call in the cache and respond immediatly
+    if (requestOptions.method === 'GET' && ttlCacheEnabled) {
       const cachedResponse = await this.storageAdapter.get(cacheKey)
       if (cachedResponse) {
         return cachedResponse
@@ -267,14 +272,20 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       signal: this.abortController.signal,
     }
 
-    // Memoize get call for the same data source instance
-    // data sources are scoped to the current request
+    // Memoize GET calls for the same data source instance
+    // a single instance of the data sources is scoped to one graphql request
     if (options.method === 'GET') {
       const cachedResponse = this.memoizedResults.get(cacheKey)
-      if (cachedResponse) return cachedResponse
+      if (cachedResponse) {
+        return cachedResponse
+      }
 
       const response = await this.performRequest<TResult>(options, cacheKey)
-      this.memoizedResults.set(cacheKey, response)
+
+      if (this.isResponseOk(response.statusCode)) {
+        this.memoizedResults.set(cacheKey, response)
+      }
+
       return response
     }
 
