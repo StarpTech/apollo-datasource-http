@@ -242,7 +242,7 @@ test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
     res.write(JSON.stringify(wanted))
-    res.end()
+    setTimeout(() => res.end(), 200).unref()
     res.socket?.unref()
   })
 

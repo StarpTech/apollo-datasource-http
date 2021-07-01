@@ -75,7 +75,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   private logger?: Logger
   private cache!: KeyValueCache<string>
   private globalRequestOptions?: RequestOptions
-  private readonly memoizedResults: QuickLRU<string, Response<any>>
+  private readonly memoizedResults: QuickLRU<string, Promise<Response<any>>>
 
   constructor(public readonly baseURL: string, private readonly options?: HTTPDataSourceOptions) {
     super()
@@ -297,9 +297,10 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       // a single instance of the data sources is scoped to one graphql request
       const cachedResponse = this.memoizedResults.get(cacheKey)
       if (cachedResponse) {
-        cachedResponse.memoized = true
-        cachedResponse.isFromCache = false
-        return cachedResponse
+        const response = await cachedResponse
+        response.memoized = true
+        response.isFromCache = false
+        return response
       }
     }
 
@@ -320,11 +321,8 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
         }
       }
 
-      const response = await this.performRequest<TResult>(options, cacheKey)
-
-      if (this.isResponseCacheable<TResult>(options, response)) {
-        this.memoizedResults.set(cacheKey, response)
-      }
+      const response = this.performRequest<TResult>(options, cacheKey)
+      this.memoizedResults.set(cacheKey, response)
 
       return response
     }
