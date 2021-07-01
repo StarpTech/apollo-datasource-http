@@ -641,13 +641,13 @@ test('Response is cached', async (t) => {
   let response = await dataSource.getFoo()
   t.false(response.isFromCache)
   t.false(response.memoized)
-  t.falsy(response.maxTtl)
+  t.is(response.maxTtl, 200)
   t.deepEqual(response.body, { name: 'foo' })
 
   response = await dataSource.getFoo()
   t.false(response.isFromCache)
   t.true(response.memoized)
-  t.falsy(response.maxTtl)
+  t.is(response.maxTtl, 200)
   t.deepEqual(response.body, { name: 'foo' })
 
   dataSource = new (class extends HTTPDataSource {
@@ -669,7 +669,7 @@ test('Response is cached', async (t) => {
   response = await dataSource.getFoo()
   t.true(response.isFromCache)
   t.false(response.memoized)
-  t.is(response.maxTtl, 100)
+  t.is(response.maxTtl, 200)
   t.deepEqual(response.body, { name: 'foo' })
 
   const cached = JSON.parse(map.get('keyv:' + baseURL + path)!)
@@ -755,7 +755,7 @@ test('Fallback from cache on origin error', async (t) => {
   let response = await dataSource.getFoo()
   t.false(response.isFromCache)
   t.false(response.memoized)
-  t.falsy(response.maxTtl)
+  t.is(response.maxTtl, 200)
 
   t.deepEqual(response.body, { name: 'foo' })
 

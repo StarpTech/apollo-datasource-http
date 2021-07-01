@@ -270,6 +270,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
       // let's see if we can fill the shared cache
       if (options.requestCache && this.isResponseCacheable<TResult>(options, response)) {
+        response.maxTtl = Math.max(options.requestCache.maxTtl, options.requestCache.maxTtlIfError)
         this.storageAdapter
           .set(cacheKey, response, options.requestCache?.maxTtl)
           .catch((err) => this.logger?.error(err))
@@ -288,7 +289,6 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
         )
         if (hasFallback) {
           hasFallback.isFromCache = true
-          hasFallback.maxTtl = options.requestCache.maxTtlIfError
           return hasFallback
         }
       }
@@ -321,7 +321,6 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
         if (cachedResponse) {
           cachedResponse.memoized = false
           cachedResponse.isFromCache = true
-          cachedResponse.maxTtl = request.requestCache.maxTtl
           return cachedResponse
         }
       }
