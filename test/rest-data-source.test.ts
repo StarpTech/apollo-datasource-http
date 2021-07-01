@@ -16,7 +16,7 @@ setGlobalDispatcher(agent)
 const test = anyTest as TestInterface<{ path: string }>
 
 test('Should be able to make a simple GET call', async (t) => {
-  t.plan(2)
+  t.plan(5)
 
   const path = '/'
 
@@ -46,6 +46,9 @@ test('Should be able to make a simple GET call', async (t) => {
 
   const response = await dataSource.getFoo()
 
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.falsy(response.maxTtl)
   t.deepEqual(response.body, { name: 'foo' })
 })
 
@@ -181,8 +184,8 @@ test('Should be able to pass query params', async (t) => {
         query: {
           a: 1,
           b: '2',
-          c: undefined
-        }
+          c: undefined,
+        },
       })
     }
   })()
@@ -230,7 +233,7 @@ test('Should error', async (t) => {
 })
 
 test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
-  t.plan(5)
+  t.plan(17)
 
   const path = '/'
 
@@ -260,15 +263,27 @@ test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
 
   let response = await dataSource.getFoo()
   t.deepEqual(response.body, { name: 'foo' })
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.falsy(response.maxTtl)
 
   response = await dataSource.getFoo()
   t.deepEqual(response.body, { name: 'foo' })
+  t.false(response.isFromCache)
+  t.true(response.memoized)
+  t.falsy(response.maxTtl)
 
   response = await dataSource.getFoo()
   t.deepEqual(response.body, { name: 'foo' })
+  t.false(response.isFromCache)
+  t.true(response.memoized)
+  t.falsy(response.maxTtl)
 
   response = await dataSource.getFoo()
   t.deepEqual(response.body, { name: 'foo' })
+  t.false(response.isFromCache)
+  t.true(response.memoized)
+  t.falsy(response.maxTtl)
 })
 
 test('Should be able to define a custom cache key for request memoization', async (t) => {
@@ -570,7 +585,7 @@ test('Initialize data source with cache and context', async (t) => {
 })
 
 test('Response is cached', async (t) => {
-  t.plan(6)
+  t.plan(16)
 
   const path = '/'
 
@@ -589,7 +604,7 @@ test('Response is cached', async (t) => {
 
   const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
 
-  const dataSource = new (class extends HTTPDataSource {
+  let dataSource = new (class extends HTTPDataSource {
     constructor() {
       super(baseURL)
     }
@@ -604,8 +619,7 @@ test('Response is cached', async (t) => {
   })()
 
   const map = new Map<string, string>()
-
-  dataSource.initialize({
+  const datasSourceConfig = {
     context: {
       a: 1,
     },
@@ -620,14 +634,42 @@ test('Response is cached', async (t) => {
         map.set(key, value)
       },
     },
-  })
+  }
+
+  dataSource.initialize(datasSourceConfig)
 
   let response = await dataSource.getFoo()
-
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.falsy(response.maxTtl)
   t.deepEqual(response.body, { name: 'foo' })
 
   response = await dataSource.getFoo()
+  t.false(response.isFromCache)
+  t.true(response.memoized)
+  t.falsy(response.maxTtl)
+  t.deepEqual(response.body, { name: 'foo' })
 
+  dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path, {
+        requestCache: {
+          maxTtl: 100,
+          maxTtlIfError: 200,
+        },
+      })
+    }
+  })()
+
+  dataSource.initialize(datasSourceConfig)
+
+  response = await dataSource.getFoo()
+  t.true(response.isFromCache)
+  t.false(response.memoized)
+  t.is(response.maxTtl, 100)
   t.deepEqual(response.body, { name: 'foo' })
 
   const cached = JSON.parse(map.get('keyv:' + baseURL + path)!)
@@ -650,7 +692,7 @@ test('Response is cached', async (t) => {
 })
 
 test('Fallback from cache on origin error', async (t) => {
-  t.plan(6)
+  t.plan(12)
 
   const path = '/'
 
@@ -711,6 +753,9 @@ test('Fallback from cache on origin error', async (t) => {
   dataSource.initialize(datasSourceConfig)
 
   let response = await dataSource.getFoo()
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.falsy(response.maxTtl)
 
   t.deepEqual(response.body, { name: 'foo' })
 
@@ -735,6 +780,9 @@ test('Fallback from cache on origin error', async (t) => {
   dataSource.initialize(datasSourceConfig)
 
   response = await dataSource.getFoo()
+  t.true(response.isFromCache)
+  t.false(response.memoized)
+  t.is(response.maxTtl, 200)
 
   t.deepEqual(response.body, { name: 'foo' })
 
@@ -742,7 +790,7 @@ test('Fallback from cache on origin error', async (t) => {
 })
 
 test('Should not cache POST requests', async (t) => {
-  t.plan(3)
+  t.plan(6)
 
   const path = '/'
 
@@ -796,6 +844,9 @@ test('Should not cache POST requests', async (t) => {
   })
 
   const response = await dataSource.postFoo()
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.falsy(response.maxTtl)
 
   t.deepEqual(response.body, { name: 'foo' })
 

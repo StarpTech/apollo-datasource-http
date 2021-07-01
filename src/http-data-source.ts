@@ -42,6 +42,9 @@ export type Request = UndiciRequestOptions &
 
 export type Response<TResult> = {
   body: TResult
+  memoized: boolean
+  isFromCache: boolean
+  maxTtl?: number
 } & Omit<ResponseData, 'body'>
 
 export interface LRUOptions {
@@ -257,14 +260,16 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       }
 
       const response: Response<TResult> = {
+        isFromCache: false,
+        memoized: false,
         ...responseData,
         body: json,
       }
 
       this.onResponse<TResult>(options, response)
 
+      // let's see if we can fill the shared cache
       if (options.requestCache && this.isResponseCacheable<TResult>(options, response)) {
-        // TODO log errors with external logger
         this.storageAdapter
           .set(cacheKey, response, options.requestCache?.maxTtl)
           .catch((err) => this.logger?.error(err))
@@ -282,6 +287,8 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
           `staleIfError:${cacheKey}`,
         )
         if (hasFallback) {
+          hasFallback.isFromCache = true
+          hasFallback.maxTtl = options.requestCache.maxTtlIfError
           return hasFallback
         }
       }
@@ -296,13 +303,27 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     }
 
     const cacheKey = this.onCacheKeyCalculation(request)
-    const ttlCacheEnabled = request.requestCache
 
     // check if we have any GET call in the cache and respond immediatly
-    if (request.method === 'GET' && ttlCacheEnabled) {
-      const cachedResponse = await this.storageAdapter.get(cacheKey)
+    if (request.method === 'GET') {
+      // Memoize GET calls for the same data source instance
+      // a single instance of the data sources is scoped to one graphql request
+      const cachedResponse = this.memoizedResults.get(cacheKey)
       if (cachedResponse) {
+        cachedResponse.memoized = true
+        cachedResponse.isFromCache = false
         return cachedResponse
+      }
+
+      // try to fetch from shared cache
+      if (request.requestCache) {
+        const cachedResponse: Response<TResult> = await this.storageAdapter.get(cacheKey)
+        if (cachedResponse) {
+          cachedResponse.memoized = false
+          cachedResponse.isFromCache = true
+          cachedResponse.maxTtl = request.requestCache.maxTtl
+          return cachedResponse
+        }
       }
     }
 
@@ -311,14 +332,8 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       ...request,
     }
 
-    // Memoize GET calls for the same data source instance
-    // a single instance of the data sources is scoped to one graphql request
+    // let's see if we can fill the memoized cache
     if (options.method === 'GET') {
-      const cachedResponse = this.memoizedResults.get(cacheKey)
-      if (cachedResponse) {
-        return cachedResponse
-      }
-
       const response = await this.performRequest<TResult>(options, cacheKey)
 
       if (this.isResponseCacheable<TResult>(options, response)) {
