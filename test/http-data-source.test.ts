@@ -377,6 +377,47 @@ test('Should call onError on request error', async (t) => {
   )
 })
 
+test('Should be possible to pass a request context', async (t) => {
+  t.plan(3)
+
+  const path = '/'
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.writeHead(200)
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+
+    onResponse<TResult = any>(request: Request, response: Response<TResult>) {
+      t.deepEqual(request.context, { a: '1' })
+      t.pass('onResponse')
+      return super.onResponse<TResult>(request, response)
+    }
+
+    async getFoo() {
+      return await this.get(path, {
+        context: {
+          a: '1'
+        }
+      })
+    }
+  })()
+
+  await dataSource.getFoo()
+})
+
 test.cb('Should abort request', (t) => {
   t.plan(2)
 

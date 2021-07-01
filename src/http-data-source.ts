@@ -27,6 +27,7 @@ interface Dictionary<T> {
 }
 
 export type RequestOptions = {
+  context?: Dictionary<string>
   query?: Dictionary<string | number>
   body?: string | Buffer | Uint8Array | Readable | null
   headers?: Dictionary<string>
@@ -35,6 +36,7 @@ export type RequestOptions = {
 
 export type Request = UndiciRequestOptions &
   CacheTTLOptions & {
+    context?: Dictionary<string>
     headers: Dictionary<string>
     query?: Dictionary<string | number>
   }
@@ -220,7 +222,14 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     this.onRequest?.(options)
 
     try {
-      const responseData = await this.pool.request(options)
+      const responseData = await this.pool.request({
+        method: options.method,
+        origin: options.origin,
+        path: options.path,
+        body: options.body,
+        headers: options.headers,
+        signal: options.signal,
+      })
 
       responseData.body.setEncoding('utf8')
       let data = ''
@@ -263,9 +272,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       this.onError?.(error, options)
 
       if (options.requestCache) {
-        const cacheItem = await this.cache.get(
-          `staleIfError:${cacheKey}`,
-        )
+        const cacheItem = await this.cache.get(`staleIfError:${cacheKey}`)
         if (cacheItem) {
           const response: Response<TResult> = sjson.parse(cacheItem)
           response.isFromCache = true
