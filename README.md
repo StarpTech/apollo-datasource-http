@@ -81,6 +81,9 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
 
   async getMovie(id) {
     return this.get(`/movies/${id}`, {
+      query: {
+        a: 1,
+      },
       headers: {
         'X-Foo': 'bar',
       },
