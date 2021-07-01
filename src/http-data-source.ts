@@ -167,7 +167,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     path: string,
     requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
-    return await this.request<TResult>({
+    return this.request<TResult>({
       headers: {},
       ...requestOptions,
       method: 'GET',
@@ -180,7 +180,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     path: string,
     requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
-    return await this.request<TResult>({
+    return this.request<TResult>({
       headers: {},
       ...requestOptions,
       method: 'POST',
@@ -193,7 +193,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     path: string,
     requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
-    return await this.request<TResult>({
+    return this.request<TResult>({
       headers: {},
       ...requestOptions,
       method: 'DELETE',
@@ -206,7 +206,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     path: string,
     requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
-    return await this.request<TResult>({
+    return this.request<TResult>({
       headers: {},
       ...requestOptions,
       method: 'PUT',
@@ -291,7 +291,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
     const cacheKey = this.onCacheKeyCalculation(request)
 
-    // check if we have any GET call in the cache and respond immediatly
+    // check if we have any GET call in the cache to respond immediatly
     if (request.method === 'GET') {
       // Memoize GET calls for the same data source instance
       // a single instance of the data sources is scoped to one graphql request
