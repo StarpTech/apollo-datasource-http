@@ -151,6 +151,46 @@ test('Should be able to make a simple PUT call', async (t) => {
   t.deepEqual(response.body, { name: 'foo' })
 })
 
+test('Should be able to pass query params', async (t) => {
+  t.plan(3)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    t.is(req.url, '/?a=1&b=2')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path, {
+        query: {
+          a: 1,
+          b: '2'
+        }
+      })
+    }
+  })()
+
+  const response = await dataSource.getFoo()
+
+  t.deepEqual(response.body, { name: 'foo' })
+})
+
 test('Should error', async (t) => {
   t.plan(2)
 

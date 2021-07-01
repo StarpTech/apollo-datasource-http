@@ -10,6 +10,7 @@ import { ResponseData, RequestOptions as UndiciRequestOptions } from 'undici/typ
 import { ApolloError } from 'apollo-server-errors'
 import { EventEmitter, Readable } from 'stream'
 import { Logger } from 'apollo-server-types'
+import { URLSearchParams } from 'url'
 
 type AbortSignal = unknown
 
@@ -27,6 +28,7 @@ interface Dictionary<T> {
 }
 
 export type RequestOptions = {
+  query?: Dictionary<string | number>
   body?: string | Buffer | Uint8Array | Readable | null
   headers?: Dictionary<string>
   signal?: AbortSignal | EventEmitter | null
@@ -35,6 +37,7 @@ export type RequestOptions = {
 export type Request = UndiciRequestOptions &
   CacheTTLOptions & {
     headers: Dictionary<string>
+    query?: Dictionary<string | number>
   }
 
 export type Response<TResult> = {
@@ -101,6 +104,19 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     this.pool = options?.pool ?? new Pool(this.baseURL, options?.clientOptions)
     this.globalRequestOptions = options?.requestOptions
     this.logger = options?.logger
+  }
+
+  private buildQueryString(query: Dictionary<string | number>): string {
+    const params = new URLSearchParams()
+    for (const key in query) {
+      if (Object.prototype.hasOwnProperty.call(query, key)) {
+        const value = query[key]
+        if (value !== undefined) {
+          params.append(key, value.toString())
+        }
+      }
+    }
+    return params.toString()
   }
 
   /**
@@ -275,6 +291,10 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   private async request<TResult = unknown>(request: Request): Promise<Response<TResult>> {
+    if (request?.query) {
+      request.path = request.path + '?' + this.buildQueryString(request.query)
+    }
+
     const cacheKey = this.onCacheKeyCalculation(request)
     const ttlCacheEnabled = request.requestCache
 
