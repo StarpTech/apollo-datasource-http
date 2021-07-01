@@ -24,7 +24,7 @@ export type CacheTTLOptions = {
 }
 
 interface Dictionary<T> {
-  [Key: string]: T
+  [Key: string]: T | undefined
 }
 
 export type RequestOptions = {

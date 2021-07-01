@@ -180,7 +180,8 @@ test('Should be able to pass query params', async (t) => {
       return this.get(path, {
         query: {
           a: 1,
-          b: '2'
+          b: '2',
+          c: undefined
         }
       })
     }
