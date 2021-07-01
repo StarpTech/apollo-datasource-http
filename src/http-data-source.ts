@@ -4,7 +4,6 @@ import { STATUS_CODES } from 'http'
 import QuickLRU from '@alloc/quick-lru'
 import sjson from 'secure-json-parse'
 
-import Keyv, { Store } from 'keyv'
 import { KeyValueCache } from 'apollo-server-caching'
 import { ResponseData, RequestOptions as UndiciRequestOptions } from 'undici/types/dispatcher'
 import { ApolloError } from 'apollo-server-errors'
@@ -61,31 +60,6 @@ export interface HTTPDataSourceOptions {
   lru?: Partial<LRUOptions>
 }
 
-function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
-  return {
-    get(key: string) {
-      return cache.get(key)
-    },
-    clear() {
-      throw new Error('clear() method is not supported by apollo key value cache')
-    },
-    async delete(key: string) {
-      const result = await cache.delete(key)
-      if (result === false) {
-        return false
-      }
-
-      return true
-    },
-    set(key: string, value: string, ttl?: number) {
-      // apollo works with seconds
-      return cache.set(key, value, {
-        ttl,
-      })
-    },
-  }
-}
-
 // https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#2xx_success
 const cacheableStatusCodes = [200, 201, 202, 203, 206]
 
@@ -95,9 +69,9 @@ const cacheableStatusCodes = [200, 201, 202, 203, 206]
  */
 export abstract class HTTPDataSource<TContext = any> extends DataSource {
   public context!: TContext
-  private storageAdapter!: Keyv
   private pool: Pool
   private logger?: Logger
+  private cache!: KeyValueCache<string>
   private globalRequestOptions?: RequestOptions
   private readonly memoizedResults: QuickLRU<string, Response<any>>
 
@@ -131,9 +105,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    */
   initialize(config: DataSourceConfig<TContext>): void {
     this.context = config.context
-    this.storageAdapter = new Keyv({
-      store: apolloKeyValueCacheToKeyv(config.cache),
-    })
+    this.cache = config.cache
   }
 
   protected isResponseOk(statusCode: number): boolean {
@@ -273,11 +245,16 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       // let's see if we can fill the shared cache
       if (options.requestCache && this.isResponseCacheable<TResult>(options, response)) {
         response.maxTtl = Math.max(options.requestCache.maxTtl, options.requestCache.maxTtlIfError)
-        this.storageAdapter
-          .set(cacheKey, response, options.requestCache?.maxTtl)
+        const cachedResponse = JSON.stringify(response)
+        this.cache
+          .set(cacheKey, cachedResponse, {
+            ttl: options.requestCache?.maxTtl,
+          })
           .catch((err) => this.logger?.error(err))
-        this.storageAdapter
-          .set(`staleIfError:${cacheKey}`, response, options.requestCache?.maxTtlIfError)
+        this.cache
+          .set(`staleIfError:${cacheKey}`, cachedResponse, {
+            ttl: options.requestCache?.maxTtlIfError,
+          })
           .catch((err) => this.logger?.error(err))
       }
 
@@ -286,12 +263,13 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       this.onError?.(error, options)
 
       if (options.requestCache) {
-        const hasFallback: Response<TResult> = await this.storageAdapter.get(
+        const cacheItem = await this.cache.get(
           `staleIfError:${cacheKey}`,
         )
-        if (hasFallback) {
-          hasFallback.isFromCache = true
-          return hasFallback
+        if (cacheItem) {
+          const response: Response<TResult> = sjson.parse(cacheItem)
+          response.isFromCache = true
+          return response
         }
       }
 
@@ -319,8 +297,9 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
       // try to fetch from shared cache
       if (request.requestCache) {
-        const cachedResponse: Response<TResult> = await this.storageAdapter.get(cacheKey)
-        if (cachedResponse) {
+        const cacheItem = await this.cache.get(cacheKey)
+        if (cacheItem) {
+          const cachedResponse: Response<TResult> = sjson.parse(cacheItem)
           cachedResponse.memoized = false
           cachedResponse.isFromCache = true
           return cachedResponse

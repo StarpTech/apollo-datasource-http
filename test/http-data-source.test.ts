@@ -585,7 +585,7 @@ test('Initialize data source with cache and context', async (t) => {
 })
 
 test('Response is cached', async (t) => {
-  t.plan(16)
+  t.plan(15)
 
   const path = '/'
 
@@ -672,22 +672,19 @@ test('Response is cached', async (t) => {
   t.is(response.maxTtl, 20)
   t.deepEqual(response.body, { name: 'foo' })
 
-  const cached = JSON.parse(map.get('keyv:' + baseURL + path)!)
+  const cached = JSON.parse(map.get(baseURL + path)!)
 
   t.is(map.size, 2)
-  t.truthy(cached.expires)
   t.like(cached, {
-    value: {
-      statusCode: 200,
-      trailers: {},
-      opaque: null,
-      headers: {
-        connection: 'keep-alive',
-        'keep-alive': 'timeout=5',
-        'transfer-encoding': 'chunked',
-      },
-      body: wanted,
+    statusCode: 200,
+    trailers: {},
+    opaque: null,
+    headers: {
+      connection: 'keep-alive',
+      'keep-alive': 'timeout=5',
+      'transfer-encoding': 'chunked',
     },
+    body: wanted,
   })
 })
 
@@ -761,7 +758,7 @@ test('Fallback from cache on origin error', async (t) => {
 
   t.is(map.size, 2)
 
-  map.delete('keyv:' + baseURL + path) // ttl is up
+  map.delete(baseURL + path) // ttl is up
 
   dataSource = new (class extends HTTPDataSource {
     constructor() {
