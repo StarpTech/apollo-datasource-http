@@ -308,7 +308,6 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       ...request,
     }
 
-    // let's see if we can fill the memoized cache
     if (options.method === 'GET') {
       // try to fetch from shared cache
       if (request.requestCache) {
