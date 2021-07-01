@@ -301,7 +301,15 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
         cachedResponse.isFromCache = false
         return cachedResponse
       }
+    }
 
+    const options = {
+      ...this.globalRequestOptions,
+      ...request,
+    }
+
+    // let's see if we can fill the memoized cache
+    if (options.method === 'GET') {
       // try to fetch from shared cache
       if (request.requestCache) {
         const cacheItem = await this.cache.get(cacheKey)
@@ -312,15 +320,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
           return cachedResponse
         }
       }
-    }
 
-    const options = {
-      ...this.globalRequestOptions,
-      ...request,
-    }
-
-    // let's see if we can fill the memoized cache
-    if (options.method === 'GET') {
       const response = await this.performRequest<TResult>(options, cacheKey)
 
       if (this.isResponseCacheable<TResult>(options, response)) {
