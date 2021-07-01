@@ -16,9 +16,9 @@ type AbortSignal = unknown
 
 export type CacheTTLOptions = {
   requestCache?: {
-    // The maximum time an item is cached
+    // The maximum time an item is cached (seconds)
     maxTtl: number
-    // The maximum time an item fetched from the cache is case of an error. This value must be greater than `maxTtl`.
+    // The maximum time an item fetched from the cache is case of an error (seconds). This value must be greater than `maxTtl`
     maxTtlIfError: number
   }
 }
@@ -44,6 +44,7 @@ export type Response<TResult> = {
   body: TResult
   memoized: boolean
   isFromCache: boolean
+  // maximum ttl (seconds)
   maxTtl?: number
 } & Omit<ResponseData, 'body'>
 
@@ -77,6 +78,7 @@ function apolloKeyValueCacheToKeyv(cache: KeyValueCache): Store<string> {
       return true
     },
     set(key: string, value: string, ttl?: number) {
+      // apollo works with seconds
       return cache.set(key, value, {
         ttl,
       })

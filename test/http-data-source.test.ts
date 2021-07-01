@@ -611,8 +611,8 @@ test('Response is cached', async (t) => {
     getFoo() {
       return this.get(path, {
         requestCache: {
-          maxTtl: 100,
-          maxTtlIfError: 200,
+          maxTtl: 10,
+          maxTtlIfError: 20,
         },
       })
     }
@@ -641,13 +641,13 @@ test('Response is cached', async (t) => {
   let response = await dataSource.getFoo()
   t.false(response.isFromCache)
   t.false(response.memoized)
-  t.is(response.maxTtl, 200)
+  t.is(response.maxTtl, 20)
   t.deepEqual(response.body, { name: 'foo' })
 
   response = await dataSource.getFoo()
   t.false(response.isFromCache)
   t.true(response.memoized)
-  t.is(response.maxTtl, 200)
+  t.is(response.maxTtl, 20)
   t.deepEqual(response.body, { name: 'foo' })
 
   dataSource = new (class extends HTTPDataSource {
@@ -657,8 +657,8 @@ test('Response is cached', async (t) => {
     getFoo() {
       return this.get(path, {
         requestCache: {
-          maxTtl: 100,
-          maxTtlIfError: 200,
+          maxTtl: 10,
+          maxTtlIfError: 20,
         },
       })
     }
@@ -669,7 +669,7 @@ test('Response is cached', async (t) => {
   response = await dataSource.getFoo()
   t.true(response.isFromCache)
   t.false(response.memoized)
-  t.is(response.maxTtl, 200)
+  t.is(response.maxTtl, 20)
   t.deepEqual(response.body, { name: 'foo' })
 
   const cached = JSON.parse(map.get('keyv:' + baseURL + path)!)
@@ -725,8 +725,8 @@ test('Fallback from cache on origin error', async (t) => {
     getFoo() {
       return this.get(path, {
         requestCache: {
-          maxTtl: 100,
-          maxTtlIfError: 200,
+          maxTtl: 10,
+          maxTtlIfError: 20,
         },
       })
     }
@@ -755,7 +755,7 @@ test('Fallback from cache on origin error', async (t) => {
   let response = await dataSource.getFoo()
   t.false(response.isFromCache)
   t.false(response.memoized)
-  t.is(response.maxTtl, 200)
+  t.is(response.maxTtl, 20)
 
   t.deepEqual(response.body, { name: 'foo' })
 
@@ -770,8 +770,8 @@ test('Fallback from cache on origin error', async (t) => {
     getFoo() {
       return this.get(path, {
         requestCache: {
-          maxTtl: 100,
-          maxTtlIfError: 200,
+          maxTtl: 10,
+          maxTtlIfError: 20,
         },
       })
     }
@@ -782,7 +782,7 @@ test('Fallback from cache on origin error', async (t) => {
   response = await dataSource.getFoo()
   t.true(response.isFromCache)
   t.false(response.memoized)
-  t.is(response.maxTtl, 200)
+  t.is(response.maxTtl, 20)
 
   t.deepEqual(response.body, { name: 'foo' })
 
@@ -816,8 +816,8 @@ test('Should not cache POST requests', async (t) => {
     postFoo() {
       return this.post(path, {
         requestCache: {
-          maxTtl: 100,
-          maxTtlIfError: 200,
+          maxTtl: 10,
+          maxTtlIfError: 20,
         },
       })
     }
@@ -837,7 +837,7 @@ test('Should not cache POST requests', async (t) => {
         return map.get(key)
       },
       async set(key: string, value: string, options: KeyValueCacheSetOptions) {
-        t.deepEqual(options, { ttl: 100 })
+        t.deepEqual(options, { ttl: 10 })
         map.set(key, value)
       },
     },
@@ -876,8 +876,8 @@ test('Response is not cached due to origin error', async (t) => {
     getFoo() {
       return this.get(path, {
         requestCache: {
-          maxTtl: 100,
-          maxTtlIfError: 200,
+          maxTtl: 10,
+          maxTtlIfError: 20,
         },
       })
     }
