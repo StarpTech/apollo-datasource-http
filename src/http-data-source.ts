@@ -163,7 +163,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
   protected onError?(_error: Error, requestOptions: Request): void
 
-  public async get<TResult = unknown>(
+  protected async get<TResult = unknown>(
     path: string,
     requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
@@ -176,7 +176,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     })
   }
 
-  public async post<TResult = unknown>(
+  protected async post<TResult = unknown>(
     path: string,
     requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
@@ -189,7 +189,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     })
   }
 
-  public async delete<TResult = unknown>(
+  protected async delete<TResult = unknown>(
     path: string,
     requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
@@ -202,7 +202,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     })
   }
 
-  public async put<TResult = unknown>(
+  protected async put<TResult = unknown>(
     path: string,
     requestOptions?: RequestOptions,
   ): Promise<Response<TResult>> {
