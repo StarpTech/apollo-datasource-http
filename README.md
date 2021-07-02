@@ -68,9 +68,16 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
 
   onRequest(request: Request): void {
     // manipulate request before it is send
+    // for example assign a AbortController signal to all requests and abort
+
+    request.signal = this.context.abortController.signal
+
+    setTimeout(() => {
+      this.context.abortController.abort()
+    }, 3000).unref()
   }
 
-  onResponse<TResult = unknown>(request: Request, response: Response<TResult>): void {
+  onResponse<TResult = unknown>(request: Request, response: Response<TResult>): Response<TResult> {
     // manipulate response or handle unsuccessful response in a different way
     return super.onResponse(request, response)
   }
@@ -84,6 +91,9 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
       query: {
         a: 1,
       },
+      context: {
+        tracingName: 'getMovie',
+      },
       headers: {
         'X-Foo': 'bar',
       },
@@ -94,9 +104,6 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
     })
   }
 })()
-
-// cancel all running requests e.g when the request is closed prematurely
-datasource.abort()
 ```
 
 ## Hooks
@@ -104,7 +111,7 @@ datasource.abort()
 - `onCacheKeyCalculation` - Returns the cache key for request memoization.
 - `onRequest` - Is executed before a request is made. This can be used to intercept requests (setting header, timeouts ...).
 - `onResponse` - Is executed when a response has been received. This can be used to alter the response before it is passed to caller or to log errors.
-- `onError` - Is executed for any error.
+- `onError` - Is executed for any request error.
 
 ## Error handling
 
