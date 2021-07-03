@@ -215,6 +215,19 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     })
   }
 
+  public async patch<TResult = unknown>(
+    path: string,
+    requestOptions?: RequestOptions,
+  ): Promise<Response<TResult>> {
+    return this.request<TResult>({
+      headers: {},
+      ...requestOptions,
+      method: 'PATCH',
+      path,
+      origin: this.baseURL,
+    })
+  }
+
   private async performRequest<TResult>(
     options: Request,
     cacheKey: string,
