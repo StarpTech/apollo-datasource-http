@@ -154,6 +154,40 @@ test('Should be able to make a simple PUT call', async (t) => {
   t.deepEqual(response.body, { name: 'foo' })
 })
 
+test('Should be able to make a simple PATCH call', async (t) => {
+  t.plan(2)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'PATCH')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    patchFoo() {
+      return this.patch(path)
+    }
+  })()
+
+  const response = await dataSource.patchFoo()
+
+  t.deepEqual(response.body, { name: 'foo' })
+})
+
 test('Should be able to pass query params', async (t) => {
   t.plan(3)
 
