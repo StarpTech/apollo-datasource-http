@@ -138,7 +138,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    *
    * @param request
    */
-  protected onRequest?(request: Request): void
+  protected async onRequest?(request: Request): Promise<void>
 
   /**
    * onResponse is executed when a response has been received.
@@ -229,19 +229,19 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   private async performRequest<TResult>(
-    options: Request & RequestOptions,
+    request: Request & RequestOptions,
     cacheKey: string,
   ): Promise<Response<TResult>> {
-    this.onRequest?.(options)
+    await this.onRequest?.(request)
 
     try {
       const responseData = await this.pool.request({
-        method: options.method,
-        origin: options.origin,
-        path: options.path,
-        body: options.body,
-        headers: options.headers,
-        signal: options.signal,
+        method: request.method,
+        origin: request.origin,
+        path: request.path,
+        body: request.body,
+        headers: request.headers,
+        signal: request.signal,
       })
 
       responseData.body.setEncoding('utf8')
@@ -262,29 +262,29 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
         body: json,
       }
 
-      this.onResponse<TResult>(options, response)
+      this.onResponse<TResult>(request, response)
 
       // let's see if we can fill the shared cache
-      if (options.requestCache && this.isResponseCacheable<TResult>(options, response)) {
-        response.maxTtl = Math.max(options.requestCache.maxTtl, options.requestCache.maxTtlIfError)
+      if (request.requestCache && this.isResponseCacheable<TResult>(request, response)) {
+        response.maxTtl = Math.max(request.requestCache.maxTtl, request.requestCache.maxTtlIfError)
         const cachedResponse = JSON.stringify(response)
         this.cache
           .set(cacheKey, cachedResponse, {
-            ttl: options.requestCache?.maxTtl,
+            ttl: request.requestCache?.maxTtl,
           })
           .catch((err) => this.logger?.error(err))
         this.cache
           .set(`staleIfError:${cacheKey}`, cachedResponse, {
-            ttl: options.requestCache?.maxTtlIfError,
+            ttl: request.requestCache?.maxTtlIfError,
           })
           .catch((err) => this.logger?.error(err))
       }
 
       return response
     } catch (error) {
-      this.onError?.(error, options)
+      this.onError?.(error, request)
 
-      if (options.requestCache) {
+      if (request.requestCache) {
         const cacheItem = await this.cache.get(`staleIfError:${cacheKey}`)
         if (cacheItem) {
           const response: Response<TResult> = sjson.parse(cacheItem)

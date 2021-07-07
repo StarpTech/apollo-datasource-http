@@ -588,7 +588,7 @@ test('Should be able to modify request in willSendRequest', async (t) => {
     constructor() {
       super(baseURL)
     }
-    onRequest(request: Request) {
+    async onRequest(request: Request) {
       request.headers = {
         'X-Foo': 'bar',
       }

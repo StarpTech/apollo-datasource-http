@@ -66,7 +66,7 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
     // return different key based on request options
   }
 
-  onRequest(request: Request): void {
+  async onRequest(request: Request): Promise<void> {
     // manipulate request before it is send
     // for example assign a AbortController signal to all requests and abort
 
