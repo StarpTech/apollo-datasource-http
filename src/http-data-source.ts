@@ -229,7 +229,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   private async performRequest<TResult>(
-    options: Request,
+    options: Request & RequestOptions,
     cacheKey: string,
   ): Promise<Response<TResult>> {
     this.onRequest?.(options)
@@ -297,7 +297,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     }
   }
 
-  private async request<TResult = unknown>(request: Request): Promise<Response<TResult>> {
+  private async request<TResult = unknown>(request: Request & RequestOptions): Promise<Response<TResult>> {
     if (request?.query) {
       request.path = request.path + '?' + this.buildQueryString(request.query)
     }
