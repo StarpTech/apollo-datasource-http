@@ -317,8 +317,8 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     }
 
     const options = {
-      ...this.globalRequestOptions,
       ...request,
+      ...this.globalRequestOptions,
     }
 
     if (options.method === 'GET') {

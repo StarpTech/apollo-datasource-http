@@ -443,8 +443,8 @@ test('Should be possible to pass a request context', async (t) => {
     async getFoo() {
       return await this.get(path, {
         context: {
-          a: '1'
-        }
+          a: '1',
+        },
       })
     }
   })()
@@ -592,6 +592,52 @@ test('Should be able to modify request in willSendRequest', async (t) => {
       request.headers = {
         'X-Foo': 'bar',
       }
+    }
+    getFoo() {
+      return this.get(path)
+    }
+  })()
+
+  const response = await dataSource.getFoo()
+
+  t.deepEqual(response.body, { name: 'foo' })
+})
+
+test('Should be able to define base headers for every request', async (t) => {
+  t.plan(4)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    t.deepEqual(req.headers['x-foo'], 'bar')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL, {
+        requestOptions: {
+          headers: {
+            'X-Foo': 'bar',
+          },
+        },
+      })
+    }
+    async onRequest(request: Request) {
+      t.deepEqual(request.headers, {
+        'X-Foo': 'bar',
+      })
     }
     getFoo() {
       return this.get(path)
