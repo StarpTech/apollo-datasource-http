@@ -5,7 +5,7 @@ import QuickLRU from '@alloc/quick-lru'
 import sjson from 'secure-json-parse'
 
 import { KeyValueCache } from 'apollo-server-caching'
-import { ResponseData, RequestOptions as UndiciRequestOptions } from 'undici/types/dispatcher'
+import { ResponseData } from 'undici/types/dispatcher'
 import { ApolloError } from 'apollo-server-errors'
 import { EventEmitter, Readable } from 'stream'
 import { Logger } from 'apollo-server-types'
@@ -31,15 +31,19 @@ export type RequestOptions = {
   query?: Dictionary<string | number>
   body?: string | Buffer | Uint8Array | Readable | null
   headers?: Dictionary<string>
-  signal?: AbortSignal | EventEmitter | null
+  signal?: AbortSignal
 } & CacheTTLOptions
 
-export type Request = UndiciRequestOptions &
-  CacheTTLOptions & {
-    context?: Dictionary<string>
-    headers: Dictionary<string>
-    query?: Dictionary<string | number>
-  }
+export type Request = {
+  context: Dictionary<string>
+  query: Dictionary<string | number>
+  body: string | Buffer | Uint8Array | Readable | null
+  signal?: AbortSignal | EventEmitter | null
+  origin: string
+  path: string
+  method: string
+  headers: Dictionary<string>
+} & CacheTTLOptions
 
 export type Response<TResult> = {
   body: TResult
@@ -169,6 +173,9 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   ): Promise<Response<TResult>> {
     return this.request<TResult>({
       headers: {},
+      query: {},
+      body: null,
+      context: {},
       ...requestOptions,
       method: 'GET',
       path,
@@ -182,6 +189,9 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   ): Promise<Response<TResult>> {
     return this.request<TResult>({
       headers: {},
+      query: {},
+      body: null,
+      context: {},
       ...requestOptions,
       method: 'POST',
       path,
@@ -195,6 +205,9 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   ): Promise<Response<TResult>> {
     return this.request<TResult>({
       headers: {},
+      query: {},
+      body: null,
+      context: {},
       ...requestOptions,
       method: 'DELETE',
       path,
@@ -208,6 +221,9 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   ): Promise<Response<TResult>> {
     return this.request<TResult>({
       headers: {},
+      query: {},
+      body: null,
+      context: {},
       ...requestOptions,
       method: 'PUT',
       path,
@@ -221,6 +237,9 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   ): Promise<Response<TResult>> {
     return this.request<TResult>({
       headers: {},
+      query: {},
+      body: null,
+      context: {},
       ...requestOptions,
       method: 'PATCH',
       path,
@@ -298,7 +317,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   private async request<TResult = unknown>(request: Request): Promise<Response<TResult>> {
-    if (request?.query) {
+    if (Object.keys(request?.query).length > 0) {
       request.path = request.path + '?' + this.buildQueryString(request.query)
     }
 
