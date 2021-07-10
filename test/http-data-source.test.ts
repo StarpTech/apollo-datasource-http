@@ -15,6 +15,12 @@ setGlobalDispatcher(agent)
 
 const test = anyTest as TestInterface<{ path: string }>
 
+function delay(t: number) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve.bind(null), t)
+  })
+}
+
 test('Should be able to make a simple GET call', async (t) => {
   t.plan(5)
 
@@ -732,6 +738,7 @@ test('Response is cached', async (t) => {
     getFoo() {
       return this.get(path, {
         requestCache: {
+          maxCacheTimeout: 50,
           maxTtl: 10,
           maxTtlIfError: 20,
         },
@@ -778,6 +785,7 @@ test('Response is cached', async (t) => {
     getFoo() {
       return this.get(path, {
         requestCache: {
+          maxCacheTimeout: 50,
           maxTtl: 10,
           maxTtlIfError: 20,
         },
@@ -809,7 +817,7 @@ test('Response is cached', async (t) => {
   })
 })
 
-test('Fallback from cache on origin error', async (t) => {
+test('Should answer request from from stale-if-error cache on origin error', async (t) => {
   t.plan(12)
 
   const path = '/'
@@ -843,6 +851,7 @@ test('Fallback from cache on origin error', async (t) => {
     getFoo() {
       return this.get(path, {
         requestCache: {
+          maxCacheTimeout: 50,
           maxTtl: 10,
           maxTtlIfError: 20,
         },
@@ -888,6 +897,7 @@ test('Fallback from cache on origin error', async (t) => {
     getFoo() {
       return this.get(path, {
         requestCache: {
+          maxCacheTimeout: 50,
           maxTtl: 10,
           maxTtlIfError: 20,
         },
@@ -905,6 +915,107 @@ test('Fallback from cache on origin error', async (t) => {
   t.deepEqual(response.body, { name: 'foo' })
 
   t.is(map.size, 1)
+})
+
+test('Should throw timeout error when the fallback cache does not respond in appropriate time', async (t) => {
+  t.plan(8)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  let reqCount = 0
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+
+    if (reqCount === 0) res.writeHead(200)
+    else res.writeHead(500)
+
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+    reqCount++
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  let dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path, {
+        requestCache: {
+          maxCacheTimeout: 50,
+          maxTtl: 10,
+          maxTtlIfError: 20,
+        },
+      })
+    }
+  })()
+
+  const map = new Map<string, string>()
+  const cache = {
+    async delete(key: string) {
+      return map.delete(key)
+    },
+    async get(key: string) {
+      return map.get(key)
+    },
+    async set(key: string, value: string) {
+      map.set(key, value)
+    },
+  }
+  const datasSourceConfig = {
+    context: {
+      a: 1,
+    },
+    cache,
+  }
+
+  dataSource.initialize(datasSourceConfig)
+
+  let response = await dataSource.getFoo()
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.is(response.maxTtl, 20)
+
+  t.deepEqual(response.body, { name: 'foo' })
+
+  t.is(map.size, 2)
+
+  map.delete(baseURL + path) // ttl is up
+
+  dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path, {
+        requestCache: {
+          maxCacheTimeout: 50,
+          maxTtl: 10,
+          maxTtlIfError: 20,
+        },
+      })
+    }
+  })()
+
+  cache.get = async function get() {
+    await delay(60)
+    return ''
+  }
+
+  dataSource.initialize(datasSourceConfig)
+
+  await t.throwsAsync(dataSource.getFoo(), {
+    message: 'Promise timed out after 50 milliseconds',
+  })
 })
 
 test('Should not cache POST requests', async (t) => {
@@ -934,6 +1045,7 @@ test('Should not cache POST requests', async (t) => {
     postFoo() {
       return this.post(path, {
         requestCache: {
+          maxCacheTimeout: 50,
           maxTtl: 10,
           maxTtlIfError: 20,
         },
@@ -994,6 +1106,7 @@ test('Response is not cached due to origin error', async (t) => {
     getFoo() {
       return this.get(path, {
         requestCache: {
+          maxCacheTimeout: 50,
           maxTtl: 10,
           maxTtlIfError: 20,
         },
@@ -1068,4 +1181,117 @@ test('Should be able to pass custom Undici Pool', async (t) => {
   const response = await dataSource.getFoo()
 
   t.deepEqual(response.body, { name: 'foo' })
+})
+
+test('Should abort cache request when cache does not respond in appropriate time', async (t) => {
+  t.plan(16)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  let dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path, {
+        requestCache: {
+          maxCacheTimeout: 50,
+          maxTtl: 10,
+          maxTtlIfError: 20,
+        },
+      })
+    }
+  })()
+
+  const map = new Map<string, string>()
+  const cache = {
+    async delete(key: string) {
+      return map.delete(key)
+    },
+    async get(key: string) {
+      return map.get(key)
+    },
+    async set(key: string, value: string) {
+      map.set(key, value)
+    },
+  }
+  const datasSourceConfig = {
+    context: {
+      a: 1,
+    },
+    cache,
+  }
+
+  dataSource.initialize(datasSourceConfig)
+
+  let response = await dataSource.getFoo()
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.is(response.maxTtl, 20)
+  t.deepEqual(response.body, { name: 'foo' })
+
+  response = await dataSource.getFoo()
+  t.false(response.isFromCache)
+  t.true(response.memoized)
+  t.is(response.maxTtl, 20)
+  t.deepEqual(response.body, { name: 'foo' })
+
+  dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path, {
+        requestCache: {
+          maxCacheTimeout: 50,
+          maxTtl: 10,
+          maxTtlIfError: 20,
+        },
+      })
+    }
+  })()
+
+  // overwrite getter to simulate a delay in cache request
+  cache.get = async function get() {
+    await delay(60)
+    return ''
+  }
+
+  dataSource.initialize(datasSourceConfig)
+
+  response = await dataSource.getFoo()
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.is(response.maxTtl, 20)
+  t.deepEqual(response.body, { name: 'foo' })
+
+  const cached = JSON.parse(map.get(baseURL + path)!)
+
+  t.is(map.size, 2)
+  t.like(cached, {
+    statusCode: 200,
+    trailers: {},
+    opaque: null,
+    headers: {
+      connection: 'keep-alive',
+      'keep-alive': 'timeout=5',
+      'transfer-encoding': 'chunked',
+    },
+    body: wanted,
+  })
 })

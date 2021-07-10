@@ -2,6 +2,7 @@ import { DataSource, DataSourceConfig } from 'apollo-datasource'
 import { Pool } from 'undici'
 import { STATUS_CODES } from 'http'
 import QuickLRU from '@alloc/quick-lru'
+import pTimeout from 'p-timeout'
 import sjson from 'secure-json-parse'
 
 import { KeyValueCache } from 'apollo-server-caching'
@@ -15,9 +16,12 @@ type AbortSignal = unknown
 
 export type CacheTTLOptions = {
   requestCache?: {
-    // The maximum time an item is cached (seconds)
+    // In case of the cache does not respond for any reason. This defines the max duration (ms) until the operation is aborted.
+    maxCacheTimeout: number
+    // The maximum time an item is cached in seconds.
     maxTtl: number
-    // The maximum time an item fetched from the cache is case of an error (seconds). This value must be greater than `maxTtl`
+    // The maximum time an item fetched from the cache is case of an error in seconds.
+    // This value must be greater than `maxTtl`.
     maxTtlIfError: number
   }
 }
@@ -287,6 +291,8 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       if (request.requestCache && this.isResponseCacheable<TResult>(request, response)) {
         response.maxTtl = Math.max(request.requestCache.maxTtl, request.requestCache.maxTtlIfError)
         const cachedResponse = JSON.stringify(response)
+
+        // respond with the result immedialty without waiting for the cache
         this.cache
           .set(cacheKey, cachedResponse, {
             ttl: request.requestCache?.maxTtl,
@@ -304,7 +310,12 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       this.onError?.(error, request)
 
       if (request.requestCache) {
-        const cacheItem = await this.cache.get(`staleIfError:${cacheKey}`)
+        // short circuit in case of the cache does not fail fast enough for any reason
+        const cacheItem = await pTimeout(
+          this.cache.get(`staleIfError:${cacheKey}`),
+          request.requestCache.maxCacheTimeout,
+        )
+
         if (cacheItem) {
           const response: Response<TResult> = sjson.parse(cacheItem)
           response.isFromCache = true
@@ -343,12 +354,23 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     if (options.method === 'GET') {
       // try to fetch from shared cache
       if (request.requestCache) {
-        const cacheItem = await this.cache.get(cacheKey)
-        if (cacheItem) {
-          const cachedResponse: Response<TResult> = sjson.parse(cacheItem)
-          cachedResponse.memoized = false
-          cachedResponse.isFromCache = true
-          return cachedResponse
+        try {
+          // short circuit in case of the cache does not fail fast enough for any reason
+          const cacheItem = await pTimeout(
+            this.cache.get(cacheKey),
+            request.requestCache.maxCacheTimeout,
+          )
+          if (cacheItem) {
+            const cachedResponse: Response<TResult> = sjson.parse(cacheItem)
+            cachedResponse.memoized = false
+            cachedResponse.isFromCache = true
+            return cachedResponse
+          }
+          const response = this.performRequest<TResult>(options, cacheKey)
+          this.memoizedResults.set(cacheKey, response)
+          return response
+        } catch (error) {
+          this.logger?.error(`Cache item '${cacheKey}' could be loaded: ${error.message}`)
         }
       }
 
