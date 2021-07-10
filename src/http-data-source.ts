@@ -370,7 +370,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
           this.memoizedResults.set(cacheKey, response)
           return response
         } catch (error) {
-          this.logger?.error(`Cache item '${cacheKey}' could be loaded: ${error.message}`)
+          this.logger?.error(`Cache item '${cacheKey}' could not be loaded: ${error.message}`)
         }
       }
 
