@@ -235,7 +235,7 @@ test('Should be able to pass query params', async (t) => {
   t.deepEqual(response.body, { name: 'foo' })
 })
 
-test('Should error', async (t) => {
+test('Should error on HTTP errors > 299', async (t) => {
   t.plan(2)
 
   const path = '/'
@@ -458,7 +458,7 @@ test('Should be possible to pass a request context', async (t) => {
   await dataSource.getFoo()
 })
 
-test.cb('Should abort request', (t) => {
+test.cb('Should abort request when abortController signal is called', (t) => {
   t.plan(2)
 
   const path = '/'
@@ -514,7 +514,7 @@ test.cb('Should abort request', (t) => {
   abortController.abort()
 })
 
-test.cb('Should timeout', (t) => {
+test.cb('Should timeout because server does not respond fast enough', (t) => {
   t.plan(3)
 
   const path = '/'
@@ -711,7 +711,7 @@ test('Initialize data source with cache and context', async (t) => {
   t.deepEqual(response.body, { name: 'foo' })
 })
 
-test('Response is cached', async (t) => {
+test('Should cache a GET response and respond with the result on subsequent calls', async (t) => {
   t.plan(15)
 
   const path = '/'
@@ -817,7 +817,7 @@ test('Response is cached', async (t) => {
   })
 })
 
-test('Should answer request from from stale-if-error cache on origin error', async (t) => {
+test('Should respond with stale-if-error cache on origin error', async (t) => {
   t.plan(12)
 
   const path = '/'
