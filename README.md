@@ -51,8 +51,8 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
     super(baseURL, {
       pool,
       clientOptions: {
-        bodyTimeout: 100,
-        headersTimeout: 100,
+        bodyTimeout: 5000,
+        headersTimeout: 2000,
       },
       requestOptions: {
         headers: {
@@ -98,6 +98,7 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
         'X-Foo': 'bar',
       },
       requestCache: {
+        maxCacheTimeout: 50 // In case of the cache does not respond for any reason (ms).
         maxTtl: 1000 * 60 * 10, // 10min, will respond for 10min with the cached result (updated every 10min)
         maxTtlIfError: 1000 * 60 * 30, // 30min, will respond in an error case with the cached response (for further 20min)
       },
@@ -117,6 +118,10 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
 
 The http client throws for unsuccessful responses (statusCode >= 400). In case of an request error `onError` is executed. By default the error is rethrown in form of the original error.
 
+## Benchmark
+
+See [README.md](benchmarks/README.md)
+
 ## Production checklist
 
 This setup is in use with Redis. If you use Redis ensure that limits are set:
@@ -126,4 +131,4 @@ maxmemory 10mb
 maxmemory-policy allkeys-lru
 ```
 
-This will limit the cache to 10MB and removes the least recently used keys from the cache when the cache hits the limits.
+This will limit the cache to 10MB and removes the least recently used keys from the cache.
