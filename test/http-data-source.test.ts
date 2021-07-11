@@ -297,7 +297,7 @@ test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
     res.write(JSON.stringify(wanted))
-    setTimeout(() => res.end(), 200).unref()
+    setTimeout(() => res.end(), 50).unref()
     res.socket?.unref()
   })
 
@@ -353,7 +353,7 @@ test('Should not memoize subsequent GET calls for unsuccessful responses', async
     t.is(req.method, 'GET')
     res.writeHead(queryObject['statusCode'] as unknown as number)
     res.write(JSON.stringify(wanted))
-    setTimeout(() => res.end(), 200).unref()
+    setTimeout(() => res.end(), 50).unref()
     res.socket?.unref()
   })
 
@@ -545,7 +545,7 @@ test.cb('Should abort request when abortController signal is called', (t) => {
         res.writeHead(200)
         res.end()
         res.socket?.unref()
-      }, 500)
+      }, 50)
     })
     .unref()
 
@@ -601,7 +601,7 @@ test.cb('Should timeout because server does not respond fast enough', (t) => {
         res.writeHead(200)
         res.end()
         res.socket?.unref()
-      }, 500)
+      }, 100)
     })
     .unref()
 
@@ -615,8 +615,8 @@ test.cb('Should timeout because server does not respond fast enough', (t) => {
     constructor() {
       super(baseURL, {
         clientOptions: {
-          bodyTimeout: 100,
-          headersTimeout: 100,
+          bodyTimeout: 50,
+          headersTimeout: 50,
         },
       })
     }
