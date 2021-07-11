@@ -2,6 +2,7 @@ import anyTest, { TestInterface } from 'ava'
 import http from 'http'
 import { setGlobalDispatcher, Agent, Pool } from 'undici'
 import AbortController from 'abort-controller'
+import querystring from 'querystring'
 import { HTTPDataSource, Request, Response } from '../src'
 import { AddressInfo } from 'net'
 import { KeyValueCacheSetOptions } from 'apollo-server-caching'
@@ -235,14 +236,15 @@ test('Should be able to pass query params', async (t) => {
   t.deepEqual(response.body, { name: 'foo' })
 })
 
-test('Should error on HTTP errors > 299', async (t) => {
-  t.plan(2)
+test('Should error on HTTP errors > 299 and != 304', async (t) => {
+  t.plan(4)
 
   const path = '/'
 
   const server = http.createServer((req, res) => {
+    const queryObject = querystring.parse(req.url?.replace('/?', '')!)
     t.is(req.method, 'GET')
-    res.writeHead(401)
+    res.writeHead(queryObject['statusCode'] as unknown as number)
     res.end()
     res.socket?.unref()
   })
@@ -257,18 +259,31 @@ test('Should error on HTTP errors > 299', async (t) => {
     constructor() {
       super(baseURL)
     }
-    getFoo() {
-      return this.get(path)
+    getFoo(statusCode: number) {
+      return this.get(path, {
+        query: {
+          statusCode,
+        },
+      })
     }
   })()
 
   await t.throwsAsync(
-    dataSource.getFoo(),
+    dataSource.getFoo(401),
     {
       instanceOf: Error,
       message: 'Response code 401 (Unauthorized)',
     },
     'Unauthenticated',
+  )
+
+  await t.throwsAsync(
+    dataSource.getFoo(500),
+    {
+      instanceOf: Error,
+      message: 'Response code 500 (Internal Server Error)',
+    },
+    'Internal Server Error',
   )
 })
 
@@ -323,6 +338,66 @@ test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
   t.deepEqual(response.body, { name: 'foo' })
   t.false(response.isFromCache)
   t.true(response.memoized)
+  t.falsy(response.maxTtl)
+})
+
+test('Should not memoize subsequent GET calls for unsuccessful responses', async (t) => {
+  t.plan(15)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    const queryObject = querystring.parse(req.url?.replace('/?', '')!)
+    t.is(req.method, 'GET')
+    res.writeHead(queryObject['statusCode'] as unknown as number)
+    res.write(JSON.stringify(wanted))
+    setTimeout(() => res.end(), 200).unref()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo(statusCode: number) {
+      return this.get(path, {
+        query: {
+          statusCode,
+        },
+      })
+    }
+  })()
+
+  let response = await dataSource.getFoo(300)
+  t.deepEqual(response.body, { name: 'foo' })
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.falsy(response.maxTtl)
+
+  try {
+    response = await dataSource.getFoo(401)
+  } catch (error) {}
+
+  t.deepEqual(response.body, { name: 'foo' })
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.falsy(response.maxTtl)
+
+  try {
+    response = await dataSource.getFoo(500)
+  } catch (error) {}
+
+  t.deepEqual(response.body, { name: 'foo' })
+  t.false(response.isFromCache)
+  t.false(response.memoized)
   t.falsy(response.maxTtl)
 })
 
@@ -687,7 +762,7 @@ test('Initialize data source with cache and context', async (t) => {
     }
   })()
 
-  const map = new Map<string, string>()
+  const cacheMap = new Map<string, string>()
 
   dataSource.initialize({
     context: {
@@ -695,13 +770,13 @@ test('Initialize data source with cache and context', async (t) => {
     },
     cache: {
       async delete(key: string) {
-        return map.delete(key)
+        return cacheMap.delete(key)
       },
       async get(key: string) {
-        return map.get(key)
+        return cacheMap.get(key)
       },
       async set(key: string, value: string) {
-        map.set(key, value)
+        cacheMap.set(key, value)
       },
     },
   })
@@ -746,20 +821,20 @@ test('Should cache a GET response and respond with the result on subsequent call
     }
   })()
 
-  const map = new Map<string, string>()
+  const cacheMap = new Map<string, string>()
   const datasSourceConfig = {
     context: {
       a: 1,
     },
     cache: {
       async delete(key: string) {
-        return map.delete(key)
+        return cacheMap.delete(key)
       },
       async get(key: string) {
-        return map.get(key)
+        return cacheMap.get(key)
       },
       async set(key: string, value: string) {
-        map.set(key, value)
+        cacheMap.set(key, value)
       },
     },
   }
@@ -801,9 +876,9 @@ test('Should cache a GET response and respond with the result on subsequent call
   t.is(response.maxTtl, 20)
   t.deepEqual(response.body, { name: 'foo' })
 
-  const cached = JSON.parse(map.get(baseURL + path)!)
+  const cached = JSON.parse(cacheMap.get(baseURL + path)!)
 
-  t.is(map.size, 2)
+  t.is(cacheMap.size, 2)
   t.like(cached, {
     statusCode: 200,
     trailers: {},
@@ -859,20 +934,20 @@ test('Should respond with stale-if-error cache on origin error', async (t) => {
     }
   })()
 
-  const map = new Map<string, string>()
+  const cacheMap = new Map<string, string>()
   const datasSourceConfig = {
     context: {
       a: 1,
     },
     cache: {
       async delete(key: string) {
-        return map.delete(key)
+        return cacheMap.delete(key)
       },
       async get(key: string) {
-        return map.get(key)
+        return cacheMap.get(key)
       },
       async set(key: string, value: string) {
-        map.set(key, value)
+        cacheMap.set(key, value)
       },
     },
   }
@@ -886,9 +961,9 @@ test('Should respond with stale-if-error cache on origin error', async (t) => {
 
   t.deepEqual(response.body, { name: 'foo' })
 
-  t.is(map.size, 2)
+  t.is(cacheMap.size, 2)
 
-  map.delete(baseURL + path) // ttl is up
+  cacheMap.delete(baseURL + path) // ttl is up
 
   dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -914,7 +989,7 @@ test('Should respond with stale-if-error cache on origin error', async (t) => {
 
   t.deepEqual(response.body, { name: 'foo' })
 
-  t.is(map.size, 1)
+  t.is(cacheMap.size, 1)
 })
 
 test('Should throw timeout error when the fallback cache does not respond in appropriate time', async (t) => {
@@ -959,16 +1034,16 @@ test('Should throw timeout error when the fallback cache does not respond in app
     }
   })()
 
-  const map = new Map<string, string>()
+  const cacheMap = new Map<string, string>()
   const cache = {
     async delete(key: string) {
-      return map.delete(key)
+      return cacheMap.delete(key)
     },
     async get(key: string) {
-      return map.get(key)
+      return cacheMap.get(key)
     },
     async set(key: string, value: string) {
-      map.set(key, value)
+      cacheMap.set(key, value)
     },
   }
   const datasSourceConfig = {
@@ -987,9 +1062,9 @@ test('Should throw timeout error when the fallback cache does not respond in app
 
   t.deepEqual(response.body, { name: 'foo' })
 
-  t.is(map.size, 2)
+  t.is(cacheMap.size, 2)
 
-  map.delete(baseURL + path) // ttl is up
+  cacheMap.delete(baseURL + path) // ttl is up
 
   dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -1053,7 +1128,7 @@ test('Should not cache POST requests', async (t) => {
     }
   })()
 
-  const map = new Map<string, string>()
+  const cacheMap = new Map<string, string>()
 
   dataSource.initialize({
     context: {
@@ -1061,14 +1136,14 @@ test('Should not cache POST requests', async (t) => {
     },
     cache: {
       async delete(key: string) {
-        return map.delete(key)
+        return cacheMap.delete(key)
       },
       async get(key: string) {
-        return map.get(key)
+        return cacheMap.get(key)
       },
       async set(key: string, value: string, options: KeyValueCacheSetOptions) {
         t.deepEqual(options, { ttl: 10 })
-        map.set(key, value)
+        cacheMap.set(key, value)
       },
     },
   })
@@ -1080,7 +1155,110 @@ test('Should not cache POST requests', async (t) => {
 
   t.deepEqual(response.body, { name: 'foo' })
 
-  t.is(map.size, 0)
+  t.is(cacheMap.size, 0)
+})
+
+test('Should only cache GET successful responses with the correct status code', async (t) => {
+  t.plan(30)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+  const server = http.createServer((req, res) => {
+    const queryObject = querystring.parse(req.url?.replace('/?', '')!)
+    t.is(req.method, 'GET')
+    res.writeHead(queryObject['statusCode'] as unknown as number)
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo(statusCode: number) {
+      return this.get(path, {
+        query: {
+          statusCode,
+        },
+        requestCache: {
+          maxCacheTimeout: 50,
+          maxTtl: 10,
+          maxTtlIfError: 20,
+        },
+      })
+    }
+  })()
+
+  const cacheMap = new Map<string, string>()
+
+  dataSource.initialize({
+    context: {
+      a: 1,
+    },
+    cache: {
+      async delete(key: string) {
+        return cacheMap.delete(key)
+      },
+      async get(key: string) {
+        return cacheMap.get(key)
+      },
+      async set(key: string, value: string) {
+        cacheMap.set(key, value)
+      },
+    },
+  })
+
+  let response = await dataSource.getFoo(200)
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.is(response.maxTtl, 20)
+  t.deepEqual(response.body, { name: 'foo' })
+  t.is(cacheMap.size, 2)
+
+  cacheMap.clear()
+
+  response = await dataSource.getFoo(203)
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.is(response.maxTtl, 20)
+  t.deepEqual(response.body, { name: 'foo' })
+  t.is(cacheMap.size, 2)
+
+  cacheMap.clear()
+
+  // 204 = no content
+  response = await dataSource.getFoo(204)
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.falsy(response.maxTtl)
+  t.falsy(response.body)
+  t.is(cacheMap.size, 0)
+
+  cacheMap.clear()
+
+  response = await dataSource.getFoo(300)
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.falsy(response.maxTtl)
+  t.deepEqual(response.body, { name: 'foo' })
+  t.is(cacheMap.size, 0)
+
+  cacheMap.clear()
+
+  response = await dataSource.getFoo(301)
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.falsy(response.maxTtl)
+  t.deepEqual(response.body, { name: 'foo' })
+  t.is(cacheMap.size, 0)
 })
 
 test('Response is not cached due to origin error', async (t) => {
@@ -1114,7 +1292,7 @@ test('Response is not cached due to origin error', async (t) => {
     }
   })()
 
-  const map = new Map<string, string>()
+  const cacheMap = new Map<string, string>()
 
   dataSource.initialize({
     context: {
@@ -1122,15 +1300,15 @@ test('Response is not cached due to origin error', async (t) => {
     },
     cache: {
       async delete(key: string) {
-        return map.delete(key)
+        return cacheMap.delete(key)
       },
       async get(key: string) {
-        return map.get(key)
+        return cacheMap.get(key)
       },
       async set(key: string, value: string) {
         console.log(key)
 
-        map.set(key, value)
+        cacheMap.set(key, value)
       },
     },
   })
@@ -1143,7 +1321,7 @@ test('Response is not cached due to origin error', async (t) => {
     'message',
   )
 
-  t.is(map.size, 0)
+  t.is(cacheMap.size, 0)
 })
 
 test('Should be able to pass custom Undici Pool', async (t) => {
@@ -1218,16 +1396,16 @@ test('Should abort cache request when cache does not respond in appropriate time
     }
   })()
 
-  const map = new Map<string, string>()
+  const cacheMap = new Map<string, string>()
   const cache = {
     async delete(key: string) {
-      return map.delete(key)
+      return cacheMap.delete(key)
     },
     async get(key: string) {
-      return map.get(key)
+      return cacheMap.get(key)
     },
     async set(key: string, value: string) {
-      map.set(key, value)
+      cacheMap.set(key, value)
     },
   }
   const datasSourceConfig = {
@@ -1280,9 +1458,9 @@ test('Should abort cache request when cache does not respond in appropriate time
   t.is(response.maxTtl, 20)
   t.deepEqual(response.body, { name: 'foo' })
 
-  const cached = JSON.parse(map.get(baseURL + path)!)
+  const cached = JSON.parse(cacheMap.get(baseURL + path)!)
 
-  t.is(map.size, 2)
+  t.is(cacheMap.size, 2)
   t.like(cached, {
     statusCode: 200,
     trailers: {},

@@ -70,8 +70,10 @@ export interface HTTPDataSourceOptions {
   lru?: Partial<LRUOptions>
 }
 
-// https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#2xx_success
-const cacheableStatusCodes = [200, 201, 202, 203, 206]
+// rfc7231 6.1
+// We only cache status codes that indicates a successful response
+// We don't cache redirects, client errors because we expect to cache JSON payload.
+const statusCodeCacheableByDefault = new Set([200, 203])
 
 /**
  * HTTPDataSource is an optimized HTTP Data Source for Apollo Server
@@ -126,7 +128,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     request: Request,
     response: Response<TResult>,
   ): boolean {
-    return cacheableStatusCodes.indexOf(response.statusCode) > -1 && request.method === 'GET'
+    return statusCodeCacheableByDefault.has(response.statusCode) && request.method === 'GET'
   }
 
   /**
