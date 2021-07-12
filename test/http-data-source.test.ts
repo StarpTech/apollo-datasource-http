@@ -3,7 +3,7 @@ import http from 'http'
 import { setGlobalDispatcher, Agent, Pool } from 'undici'
 import AbortController from 'abort-controller'
 import querystring from 'querystring'
-import { HTTPDataSource, Request, Response } from '../src'
+import { HTTPDataSource, Request, Response, RequestError } from '../src'
 import { AddressInfo } from 'net'
 import { KeyValueCacheSetOptions } from 'apollo-server-caching'
 
@@ -272,6 +272,7 @@ test('Should error on HTTP errors > 299 and != 304', async (t) => {
     dataSource.getFoo(401),
     {
       instanceOf: Error,
+      code: 401,
       message: 'Response code 401 (Unauthorized)',
     },
     'Unauthenticated',
@@ -281,6 +282,7 @@ test('Should error on HTTP errors > 299 and != 304', async (t) => {
     dataSource.getFoo(500),
     {
       instanceOf: Error,
+      code: 500,
       message: 'Response code 500 (Internal Server Error)',
     },
     'Internal Server Error',
@@ -342,7 +344,7 @@ test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
 })
 
 test('Should not memoize subsequent GET calls for unsuccessful responses', async (t) => {
-  t.plan(15)
+  t.plan(17)
 
   const path = '/'
 
@@ -367,6 +369,14 @@ test('Should not memoize subsequent GET calls for unsuccessful responses', async
     constructor() {
       super(baseURL)
     }
+    onError(error: Error) {
+      if (error instanceof RequestError) {
+        t.false(error.response.isFromCache)
+        t.false(error.response.memoized)
+        t.falsy(error.response.maxTtl)
+        t.truthy(error.request)
+      }
+    }
     getFoo(statusCode: number) {
       return this.get(path, {
         query: {
@@ -382,23 +392,16 @@ test('Should not memoize subsequent GET calls for unsuccessful responses', async
   t.false(response.memoized)
   t.falsy(response.maxTtl)
 
-  try {
-    response = await dataSource.getFoo(401)
-  } catch (error) {}
-
-  t.deepEqual(response.body, { name: 'foo' })
-  t.false(response.isFromCache)
-  t.false(response.memoized)
-  t.falsy(response.maxTtl)
-
-  try {
-    response = await dataSource.getFoo(500)
-  } catch (error) {}
-
-  t.deepEqual(response.body, { name: 'foo' })
-  t.false(response.isFromCache)
-  t.false(response.memoized)
-  t.falsy(response.maxTtl)
+  await t.throwsAsync(dataSource.getFoo(401), {
+    instanceOf: Error,
+    code: 401,
+    message: 'Response code 401 (Unauthorized)',
+  })
+  await t.throwsAsync(dataSource.getFoo(500), {
+    instanceOf: Error,
+    code: 500,
+    message: 'Response code 500 (Internal Server Error)',
+  })
 })
 
 test('Should be able to define a custom cache key for request memoization', async (t) => {
@@ -443,7 +446,7 @@ test('Should be able to define a custom cache key for request memoization', asyn
 })
 
 test('Should call onError on request error', async (t) => {
-  t.plan(7)
+  t.plan(11)
 
   const path = '/'
 
@@ -465,15 +468,21 @@ test('Should call onError on request error', async (t) => {
       super(baseURL)
     }
 
-    onResponse<TResult = any>(requestOptions: Request, response: Response<TResult>) {
-      t.truthy(requestOptions)
+    onResponse<TResult = any>(request: Request, response: Response<TResult>) {
+      t.truthy(request)
       t.truthy(response)
       t.pass('onResponse')
-      return super.onResponse<TResult>(requestOptions, response)
+      return super.onResponse<TResult>(request, response)
     }
 
     onError(error: Error) {
-      t.truthy(error)
+      t.is(error.name, 'RequestError')
+      t.is(error.message, 'Response code 500 (Internal Server Error)')
+      if (error instanceof RequestError) {
+        t.is(error.code, 500)
+        t.truthy(error.request)
+        t.truthy(error.response)
+      }
       t.pass('onRequestError')
     }
 
@@ -486,6 +495,7 @@ test('Should call onError on request error', async (t) => {
     dataSource.getFoo(),
     {
       instanceOf: Error,
+      code: 500,
       message: 'Response code 500 (Internal Server Error)',
     },
     'Server error',
@@ -1317,6 +1327,7 @@ test('Response is not cached due to origin error', async (t) => {
     dataSource.getFoo(),
     {
       message: 'Response code 500 (Internal Server Error)',
+      code: 500
     },
     'message',
   )
