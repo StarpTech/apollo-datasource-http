@@ -31,6 +31,9 @@ test('Should be able to make a simple GET call', async (t) => {
 
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -68,6 +71,9 @@ test('Should be able to make a simple POST call', async (t) => {
 
   const server = http.createServer((req, res) => {
     t.is(req.method, 'POST')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -102,6 +108,9 @@ test('Should be able to make a simple DELETE call', async (t) => {
 
   const server = http.createServer((req, res) => {
     t.is(req.method, 'DELETE')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -136,6 +145,9 @@ test('Should be able to make a simple PUT call', async (t) => {
 
   const server = http.createServer((req, res) => {
     t.is(req.method, 'PUT')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -170,6 +182,9 @@ test('Should be able to make a simple PATCH call', async (t) => {
 
   const server = http.createServer((req, res) => {
     t.is(req.method, 'PATCH')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -205,6 +220,9 @@ test('Should be able to pass query params', async (t) => {
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
     t.is(req.url, '/?a=1&b=2')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -289,6 +307,41 @@ test('Should error on HTTP errors > 299 and != 304', async (t) => {
   )
 })
 
+test('Should not parse content as JSON when content-type header is missing', async (t) => {
+  t.plan(3)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.writeHead(200)
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path)
+    }
+  })()
+
+  const response = await dataSource.getFoo()
+  t.is(response.statusCode, 200)
+  t.is(response.body, JSON.stringify(wanted))
+})
+
 test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
   t.plan(17)
 
@@ -298,6 +351,9 @@ test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
 
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     setTimeout(() => res.end(), 50).unref()
     res.socket?.unref()
@@ -319,25 +375,25 @@ test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
   })()
 
   let response = await dataSource.getFoo()
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
   t.false(response.isFromCache)
   t.false(response.memoized)
   t.falsy(response.maxTtl)
 
   response = await dataSource.getFoo()
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
   t.false(response.isFromCache)
   t.true(response.memoized)
   t.falsy(response.maxTtl)
 
   response = await dataSource.getFoo()
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
   t.false(response.isFromCache)
   t.true(response.memoized)
   t.falsy(response.maxTtl)
 
   response = await dataSource.getFoo()
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
   t.false(response.isFromCache)
   t.true(response.memoized)
   t.falsy(response.maxTtl)
@@ -353,7 +409,9 @@ test('Should not memoize subsequent GET calls for unsuccessful responses', async
   const server = http.createServer((req, res) => {
     const queryObject = querystring.parse(req.url?.replace('/?', '')!)
     t.is(req.method, 'GET')
-    res.writeHead(queryObject['statusCode'] as unknown as number)
+    res.writeHead(queryObject['statusCode'] as unknown as number, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     setTimeout(() => res.end(), 50).unref()
     res.socket?.unref()
@@ -413,6 +471,9 @@ test('Should be able to define a custom cache key for request memoization', asyn
 
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -439,10 +500,10 @@ test('Should be able to define a custom cache key for request memoization', asyn
   })()
 
   let response = await dataSource.getFoo()
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 
   response = await dataSource.getFoo()
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 })
 
 test('Should call onError on request error', async (t) => {
@@ -664,6 +725,9 @@ test('Should be able to modify request in willSendRequest', async (t) => {
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
     t.deepEqual(req.headers['x-foo'], 'bar')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -691,7 +755,7 @@ test('Should be able to modify request in willSendRequest', async (t) => {
 
   const response = await dataSource.getFoo()
 
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 })
 
 test('Should be able to define base headers for every request', async (t) => {
@@ -704,6 +768,9 @@ test('Should be able to define base headers for every request', async (t) => {
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
     t.deepEqual(req.headers['x-foo'], 'bar')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -737,7 +804,7 @@ test('Should be able to define base headers for every request', async (t) => {
 
   const response = await dataSource.getFoo()
 
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 })
 
 test('Initialize data source with cache and context', async (t) => {
@@ -749,6 +816,9 @@ test('Initialize data source with cache and context', async (t) => {
 
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -793,7 +863,7 @@ test('Initialize data source with cache and context', async (t) => {
 
   const response = await dataSource.getFoo()
 
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 })
 
 test('Should cache a GET response and respond with the result on subsequent calls', async (t) => {
@@ -805,6 +875,9 @@ test('Should cache a GET response and respond with the result on subsequent call
 
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -855,13 +928,13 @@ test('Should cache a GET response and respond with the result on subsequent call
   t.false(response.isFromCache)
   t.false(response.memoized)
   t.is(response.maxTtl, 20)
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 
   response = await dataSource.getFoo()
   t.false(response.isFromCache)
   t.true(response.memoized)
   t.is(response.maxTtl, 20)
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 
   dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -884,7 +957,7 @@ test('Should cache a GET response and respond with the result on subsequent call
   t.true(response.isFromCache)
   t.false(response.memoized)
   t.is(response.maxTtl, 20)
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 
   const cached = JSON.parse(cacheMap.get(baseURL + path)!)
 
@@ -914,8 +987,14 @@ test('Should respond with stale-if-error cache on origin error', async (t) => {
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
 
-    if (reqCount === 0) res.writeHead(200)
-    else res.writeHead(500)
+    if (reqCount === 0)
+      res.writeHead(200, {
+        'content-type': 'application/json',
+      })
+    else
+      res.writeHead(500, {
+        'content-type': 'application/json',
+      })
 
     res.write(JSON.stringify(wanted))
     res.end()
@@ -969,7 +1048,7 @@ test('Should respond with stale-if-error cache on origin error', async (t) => {
   t.false(response.memoized)
   t.is(response.maxTtl, 20)
 
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 
   t.is(cacheMap.size, 2)
 
@@ -997,7 +1076,7 @@ test('Should respond with stale-if-error cache on origin error', async (t) => {
   t.false(response.memoized)
   t.is(response.maxTtl, 20)
 
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 
   t.is(cacheMap.size, 1)
 })
@@ -1014,8 +1093,14 @@ test('Should throw timeout error when the fallback cache does not respond in app
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
 
-    if (reqCount === 0) res.writeHead(200)
-    else res.writeHead(500)
+    if (reqCount === 0)
+      res.writeHead(200, {
+        'content-type': 'application/json',
+      })
+    else
+      res.writeHead(500, {
+        'content-type': 'application/json',
+      })
 
     res.write(JSON.stringify(wanted))
     res.end()
@@ -1070,7 +1155,7 @@ test('Should throw timeout error when the fallback cache does not respond in app
   t.false(response.memoized)
   t.is(response.maxTtl, 20)
 
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 
   t.is(cacheMap.size, 2)
 
@@ -1112,6 +1197,9 @@ test('Should not cache POST requests', async (t) => {
 
   const server = http.createServer((req, res) => {
     t.is(req.method, 'POST')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -1163,7 +1251,7 @@ test('Should not cache POST requests', async (t) => {
   t.false(response.memoized)
   t.falsy(response.maxTtl)
 
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 
   t.is(cacheMap.size, 0)
 })
@@ -1177,7 +1265,9 @@ test('Should only cache GET successful responses with the correct status code', 
   const server = http.createServer((req, res) => {
     const queryObject = querystring.parse(req.url?.replace('/?', '')!)
     t.is(req.method, 'GET')
-    res.writeHead(queryObject['statusCode'] as unknown as number)
+    res.writeHead(queryObject['statusCode'] as unknown as number, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -1230,7 +1320,7 @@ test('Should only cache GET successful responses with the correct status code', 
   t.false(response.isFromCache)
   t.false(response.memoized)
   t.is(response.maxTtl, 20)
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
   t.is(cacheMap.size, 2)
 
   cacheMap.clear()
@@ -1239,7 +1329,7 @@ test('Should only cache GET successful responses with the correct status code', 
   t.false(response.isFromCache)
   t.false(response.memoized)
   t.is(response.maxTtl, 20)
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
   t.is(cacheMap.size, 2)
 
   cacheMap.clear()
@@ -1258,7 +1348,7 @@ test('Should only cache GET successful responses with the correct status code', 
   t.false(response.isFromCache)
   t.false(response.memoized)
   t.falsy(response.maxTtl)
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
   t.is(cacheMap.size, 0)
 
   cacheMap.clear()
@@ -1267,7 +1357,7 @@ test('Should only cache GET successful responses with the correct status code', 
   t.false(response.isFromCache)
   t.false(response.memoized)
   t.falsy(response.maxTtl)
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
   t.is(cacheMap.size, 0)
 })
 
@@ -1327,7 +1417,7 @@ test('Response is not cached due to origin error', async (t) => {
     dataSource.getFoo(),
     {
       message: 'Response code 500 (Internal Server Error)',
-      code: 500
+      code: 500,
     },
     'message',
   )
@@ -1344,6 +1434,9 @@ test('Should be able to pass custom Undici Pool', async (t) => {
 
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -1369,7 +1462,7 @@ test('Should be able to pass custom Undici Pool', async (t) => {
 
   const response = await dataSource.getFoo()
 
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 })
 
 test('Should abort cache request when cache does not respond in appropriate time', async (t) => {
@@ -1381,6 +1474,9 @@ test('Should abort cache request when cache does not respond in appropriate time
 
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
     res.write(JSON.stringify(wanted))
     res.end()
     res.socket?.unref()
@@ -1432,13 +1528,13 @@ test('Should abort cache request when cache does not respond in appropriate time
   t.false(response.isFromCache)
   t.false(response.memoized)
   t.is(response.maxTtl, 20)
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 
   response = await dataSource.getFoo()
   t.false(response.isFromCache)
   t.true(response.memoized)
   t.is(response.maxTtl, 20)
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 
   dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -1467,7 +1563,7 @@ test('Should abort cache request when cache does not respond in appropriate time
   t.false(response.isFromCache)
   t.false(response.memoized)
   t.is(response.maxTtl, 20)
-  t.deepEqual(response.body, { name: 'foo' })
+  t.deepEqual(response.body, wanted)
 
   const cached = JSON.parse(cacheMap.get(baseURL + path)!)
 

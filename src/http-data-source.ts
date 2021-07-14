@@ -283,22 +283,23 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
         signal: request.signal,
       })
 
-      responseData.body.setEncoding('utf8')
       let data = ''
       for await (const chunk of responseData.body) {
         data += chunk
       }
 
-      let json
-      if (data) {
-        json = sjson.parse(data)
+      let json = null
+      if (responseData.headers['content-type']?.includes('application/json')) {
+        if (data !== '') {
+          json = sjson.parse(data)
+        }
       }
 
       const response: Response<TResult> = {
         isFromCache: false,
         memoized: false,
         ...responseData,
-        body: json,
+        body: json ?? data,
       }
 
       this.onResponse<TResult>(request, response)
