@@ -82,8 +82,11 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
     return super.onResponse(request, response)
   }
 
-  onError(error: RequestError, request: Request): void {
-    // log errors
+  onError(error: Error, request: Request): void {
+    // in case of a request error
+    if (error instanceof RequestError) {
+      console.log(error.request, error.response)
+    }
   }
 
   async getMovie(id) {
@@ -116,7 +119,7 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
 
 ## Error handling
 
-The http client throws for unsuccessful responses (statusCode >= 400). In case of an request error `onError` is executed. By default the error is rethrown in form of the original error.
+The http client throws for unsuccessful responses (statusCode >= 400). In case of an request error `onError` is executed. By default the error is rethrown as a `ApolloError` to avoid exposing sensible information.
 
 ## Benchmark
 

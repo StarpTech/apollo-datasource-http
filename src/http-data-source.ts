@@ -7,12 +7,24 @@ import sjson from 'secure-json-parse'
 
 import { KeyValueCache } from 'apollo-server-caching'
 import { ResponseData } from 'undici/types/dispatcher'
-import { ApolloError } from 'apollo-server-errors'
+import { toApolloError } from 'apollo-server-errors'
 import { EventEmitter, Readable } from 'stream'
 import { Logger } from 'apollo-server-types'
 import { URLSearchParams } from 'url'
 
 type AbortSignal = unknown
+
+export class RequestError<T = unknown> extends Error {
+  constructor(
+    public message: string,
+    public code: number,
+    public request: Request,
+    public response: Response<T>,
+  ) {
+    super(message)
+    this.name = 'RequestError'
+  }
+}
 
 export type CacheTTLOptions = {
   requestCache?: {
@@ -158,16 +170,18 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    * @param response
    */
   protected onResponse<TResult = unknown>(
-    _request: Request,
+    request: Request,
     response: Response<TResult>,
   ): Response<TResult> {
     if (this.isResponseOk(response.statusCode)) {
       return response
     }
 
-    throw new ApolloError(
-      `Response code ${response.statusCode} (${STATUS_CODES[response.statusCode]})`,
-      response.statusCode.toString(),
+    throw new RequestError(
+      `Response code ${response.statusCode} (${STATUS_CODES[response.statusCode.toString()]})`,
+      response.statusCode,
+      request,
+      response,
     )
   }
 
@@ -268,23 +282,25 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
         headers: request.headers,
         signal: request.signal,
       })
-
       responseData.body.setEncoding('utf8')
+
       let data = ''
       for await (const chunk of responseData.body) {
         data += chunk
       }
 
-      let json
-      if (data) {
-        json = sjson.parse(data)
+      let json = null
+      if (responseData.headers['content-type']?.includes('application/json')) {
+        if (data !== '') {
+          json = sjson.parse(data)
+        }
       }
 
       const response: Response<TResult> = {
         isFromCache: false,
         memoized: false,
         ...responseData,
-        body: json,
+        body: json ?? data,
       }
 
       this.onResponse<TResult>(request, response)
@@ -325,7 +341,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
         }
       }
 
-      throw error
+      throw toApolloError(error)
     }
   }
 
