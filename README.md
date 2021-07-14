@@ -136,6 +136,6 @@ maxmemory-policy allkeys-lru
 
 This will limit the cache to 10MB and removes the least recently used keys from the cache.
 
-# Node.js support
+## Node.js support
 
 We test this software against **latest** major releases of the [Node.js LTS policy](https://github.com/nodejs/Release). `Current` is included to catch regression earlier.
