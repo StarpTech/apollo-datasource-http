@@ -282,6 +282,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
         headers: request.headers,
         signal: request.signal,
       })
+      responseData.body.setEncoding('utf8')
 
       let data = ''
       for await (const chunk of responseData.body) {
