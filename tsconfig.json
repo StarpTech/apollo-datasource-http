@@ -1,8 +1,8 @@
 {
+  "extends": "@tsconfig/node12/tsconfig.json",
   "compilerOptions": {
     "outDir": "dist",
     "composite": true,
-    "target": "es2020", // Node.js 14
     "module": "commonjs",
     "moduleResolution": "node",
     "esModuleInterop": true,
@@ -18,7 +18,6 @@
     "noUnusedParameters": true,
     "noUnusedLocals": true,
     "forceConsistentCasingInFileNames": true,
-    "lib": ["es2020"],
     "baseUrl": "."
   },
   "include": ["src", "test"]

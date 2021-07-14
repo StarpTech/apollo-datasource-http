@@ -22,7 +22,7 @@
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "engines": {
-    "node": ">=14"
+    "node": ">=12"
   },
   "keywords": [
     "apollo",
@@ -60,9 +60,10 @@
     "undici": "^4.1.0"
   },
   "devDependencies": {
+    "@tsconfig/node12": "^1.0.9",
     "@types/node": "^14.17.3",
-    "apollo-datasource-rest": "^0.14.0",
     "abort-controller": "^3.0.0",
+    "apollo-datasource-rest": "^0.14.0",
     "ava": "^3.15.0",
     "h2url": "^0.2.0",
     "nock": "^13.1.0",
