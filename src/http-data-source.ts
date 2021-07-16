@@ -8,7 +8,7 @@ import sjson from 'secure-json-parse'
 import { KeyValueCache } from 'apollo-server-caching'
 import { ResponseData } from 'undici/types/dispatcher'
 import { toApolloError } from 'apollo-server-errors'
-import { EventEmitter, Readable } from 'stream'
+import { EventEmitter } from 'stream'
 import { Logger } from 'apollo-server-types'
 import { URLSearchParams } from 'url'
 
@@ -42,19 +42,14 @@ interface Dictionary<T> {
   [Key: string]: T | undefined
 }
 
-export type RequestOptions = {
-  context?: Dictionary<string>
-  query?: Dictionary<string | number>
-  body?: string | Buffer | Uint8Array | Readable | null
-  headers?: Dictionary<string>
-  signal?: AbortSignal
-} & CacheTTLOptions
+export type RequestOptions = Omit<Partial<Request>, 'origin' | 'path' | 'method'>
 
 export type Request = {
   context: Dictionary<string>
   query: Dictionary<string | number>
-  body: string | Buffer | Uint8Array | Readable | null
+  body: any
   signal?: AbortSignal | EventEmitter | null
+  json?: boolean
   origin: string
   path: string
   method: string
@@ -274,14 +269,23 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     await this.onRequest?.(request)
 
     try {
-      const responseData = await this.pool.request({
+      const requestOptions = {
         method: request.method,
         origin: request.origin,
         path: request.path,
         body: request.body,
         headers: request.headers,
         signal: request.signal,
-      })
+      }
+
+      if (request.json === true) {
+        if (requestOptions.headers['content-type'] === undefined) {
+          requestOptions.headers['content-type'] = 'application/json; charset=utf-8'
+        }
+        requestOptions.body = JSON.stringify(requestOptions.body)
+      }
+
+      const responseData = await this.pool.request(requestOptions)
       responseData.body.setEncoding('utf8')
 
       let data = ''

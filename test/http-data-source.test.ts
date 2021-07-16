@@ -99,6 +99,58 @@ test('Should be able to make a simple POST call', async (t) => {
   t.deepEqual(response.body, { name: 'foo' })
 })
 
+test('Should be able to make a simple POST with JSON body', async (t) => {
+  t.plan(4)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'POST')
+    t.is(req.headers['content-type'], 'application/json; charset=utf-8')
+
+    let data = ''
+
+    req.on('data', (chunk) => {
+      data += chunk
+    })
+    req.on('end', () => {
+      t.deepEqual(data, '{"foo":"bar"}')
+      res.writeHead(200, {
+        'content-type': 'application/json',
+      })
+      res.write(JSON.stringify(wanted))
+      res.end()
+      res.socket?.unref()
+    })
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    postFoo() {
+      return this.post(path, {
+        json: true,
+        body: {
+          foo: 'bar',
+        },
+      })
+    }
+  })()
+
+  const response = await dataSource.postFoo()
+
+  t.deepEqual(response.body, { name: 'foo' })
+})
+
 test('Should be able to make a simple DELETE call', async (t) => {
   t.plan(2)
 
