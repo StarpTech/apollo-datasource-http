@@ -89,6 +89,14 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
     }
   }
 
+  async createMovie() {
+    return this.post('/movies', {
+      body: {
+        name: 'Dude Where\'s My Car',
+      }
+    })
+  }
+
   async getMovie(id) {
     return this.get(`/movies/${id}`, {
       query: {

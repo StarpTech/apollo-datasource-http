@@ -138,7 +138,6 @@ test('Should be able to make a simple POST with JSON body', async (t) => {
     }
     postFoo() {
       return this.post(path, {
-        json: true,
         body: {
           foo: 'bar',
         },

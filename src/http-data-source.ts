@@ -6,7 +6,7 @@ import pTimeout from 'p-timeout'
 import sjson from 'secure-json-parse'
 
 import { KeyValueCache } from 'apollo-server-caching'
-import { ResponseData } from 'undici/types/dispatcher'
+import Dispatcher, { ResponseData } from 'undici/types/dispatcher'
 import { toApolloError } from 'apollo-server-errors'
 import { EventEmitter } from 'stream'
 import { Logger } from 'apollo-server-types'
@@ -44,10 +44,10 @@ interface Dictionary<T> {
 
 export type RequestOptions = Omit<Partial<Request>, 'origin' | 'path' | 'method'>
 
-export type Request = {
+export type Request<T = unknown> = {
   context: Dictionary<string>
   query: Dictionary<string | number>
-  body: any
+  body: T
   signal?: AbortSignal | EventEmitter | null
   json?: boolean
   origin: string
@@ -266,23 +266,23 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     request: Request,
     cacheKey: string,
   ): Promise<Response<TResult>> {
-    await this.onRequest?.(request)
-
     try {
-      const requestOptions = {
+      if (request.body !== null && typeof request.body === 'object') {
+        if (request.headers['content-type'] === undefined) {
+          request.headers['content-type'] = 'application/json; charset=utf-8'
+        }
+        request.body = JSON.stringify(request.body)
+      }
+
+      await this.onRequest?.(request)
+
+      const requestOptions: Dispatcher.RequestOptions = {
         method: request.method,
         origin: request.origin,
         path: request.path,
-        body: request.body,
         headers: request.headers,
         signal: request.signal,
-      }
-
-      if (request.json === true) {
-        if (requestOptions.headers['content-type'] === undefined) {
-          requestOptions.headers['content-type'] = 'application/json; charset=utf-8'
-        }
-        requestOptions.body = JSON.stringify(requestOptions.body)
+        body: request.body as string,
       }
 
       const responseData = await this.pool.request(requestOptions)
@@ -295,7 +295,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
       let json = null
       if (responseData.headers['content-type']?.includes('application/json')) {
-        if (data !== '') {
+        if (data.length && typeof data === 'string') {
           json = sjson.parse(data)
         }
       }
