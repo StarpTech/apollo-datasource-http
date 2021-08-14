@@ -55,9 +55,7 @@
     "apollo-server-errors": "^2.5.0",
     "apollo-server-types": "^0.9.0",
     "graphql": "^15.5.1",
-    "p-timeout": "^4.1.0",
-    "secure-json-parse": "^2.4.0",
-    "undici": "^4.1.0"
+    "undici": "^4.4.2"
   },
   "devDependencies": {
     "@tsconfig/node12": "^1.0.9",
@@ -66,12 +64,12 @@
     "apollo-datasource-rest": "^0.14.0",
     "ava": "^3.15.0",
     "h2url": "^0.2.0",
-    "nock": "^13.1.0",
+    "nock": "^13.1.1",
     "nyc": "^15.1.0",
     "prettier": "^2.3.2",
-    "release-it": "^14.10.0",
-    "ts-node": "^10.0.0",
-    "typescript": "^4.3.4",
+    "release-it": "^14.11.3",
+    "ts-node": "^10.2.0",
+    "typescript": "^4.3.5",
     "uid": "^2.0.0"
   }
 }

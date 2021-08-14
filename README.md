@@ -109,9 +109,8 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
         'X-Foo': 'bar',
       },
       requestCache: {
-        maxCacheTimeout: 50 // In case of the cache does not respond for any reason (ms).
         maxTtl: 1000 * 60 * 10, // 10min, will respond for 10min with the cached result (updated every 10min)
-        maxTtlIfError: 1000 * 60 * 30, // 30min, will respond in an error case with the cached response (for further 20min)
+        maxTtlIfError: 1000 * 60 * 30, // 30min, will respond with the cached response in case of an error (for further 20min)
       },
     })
   }

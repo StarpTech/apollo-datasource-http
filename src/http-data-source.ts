@@ -2,11 +2,9 @@ import { DataSource, DataSourceConfig } from 'apollo-datasource'
 import { Pool } from 'undici'
 import { STATUS_CODES } from 'http'
 import QuickLRU from '@alloc/quick-lru'
-import pTimeout from 'p-timeout'
-import sjson from 'secure-json-parse'
 
 import { KeyValueCache } from 'apollo-server-caching'
-import Dispatcher, { ResponseData } from 'undici/types/dispatcher'
+import Dispatcher, { HttpMethod, ResponseData } from 'undici/types/dispatcher'
 import { toApolloError } from 'apollo-server-errors'
 import { EventEmitter } from 'stream'
 import { Logger } from 'apollo-server-types'
@@ -28,12 +26,9 @@ export class RequestError<T = unknown> extends Error {
 
 export type CacheTTLOptions = {
   requestCache?: {
-    // In case of the cache does not respond for any reason. This defines the max duration (ms) until the operation is aborted.
-    maxCacheTimeout: number
     // The maximum time an item is cached in seconds.
     maxTtl: number
-    // The maximum time an item fetched from the cache is case of an error in seconds.
-    // This value must be greater than `maxTtl`.
+    // The maximum time the cache should be used when the re-fetch from the origin fails.
     maxTtlIfError: number
   }
 }
@@ -52,7 +47,7 @@ export type Request<T = unknown> = {
   json?: boolean
   origin: string
   path: string
-  method: string
+  method: HttpMethod
   headers: Dictionary<string>
 } & CacheTTLOptions
 
@@ -267,6 +262,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     cacheKey: string,
   ): Promise<Response<TResult>> {
     try {
+      // in case of JSON set appropriate content-type header
       if (request.body !== null && typeof request.body === 'object') {
         if (request.headers['content-type'] === undefined) {
           request.headers['content-type'] = 'application/json; charset=utf-8'
@@ -286,43 +282,42 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       }
 
       const responseData = await this.pool.request(requestOptions)
-      responseData.body.setEncoding('utf8')
 
-      let data = ''
-      for await (const chunk of responseData.body) {
-        data += chunk
-      }
-
-      let json = null
-      if (responseData.headers['content-type']?.includes('application/json')) {
-        if (data.length && typeof data === 'string') {
-          json = sjson.parse(data)
-        }
+      let body = await responseData.body.text()
+      // can we parse it as JSON?
+      if (
+        responseData.headers['content-type']?.includes('application/json') &&
+        body.length &&
+        typeof body === 'string'
+      ) {
+        body = JSON.parse(body)
       }
 
       const response: Response<TResult> = {
         isFromCache: false,
         memoized: false,
         ...responseData,
-        body: json ?? data,
+        // in case of the server does not properly respond with JSON we pass it as text.
+        // this is necessary since POST, DELETE don't always have a JSON body.
+        body: body as unknown as TResult,
       }
 
       this.onResponse<TResult>(request, response)
 
       // let's see if we can fill the shared cache
       if (request.requestCache && this.isResponseCacheable<TResult>(request, response)) {
-        response.maxTtl = Math.max(request.requestCache.maxTtl, request.requestCache.maxTtlIfError)
+        response.maxTtl = request.requestCache.maxTtl
         const cachedResponse = JSON.stringify(response)
 
-        // respond with the result immedialty without waiting for the cache
+        // respond with the result immediately without waiting for the cache
         this.cache
           .set(cacheKey, cachedResponse, {
-            ttl: request.requestCache?.maxTtl,
+            ttl: request.requestCache.maxTtl,
           })
           .catch((err) => this.logger?.error(err))
         this.cache
           .set(`staleIfError:${cacheKey}`, cachedResponse, {
-            ttl: request.requestCache?.maxTtlIfError,
+            ttl: request.requestCache.maxTtl + request.requestCache.maxTtlIfError,
           })
           .catch((err) => this.logger?.error(err))
       }
@@ -331,15 +326,12 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     } catch (error) {
       this.onError?.(error, request)
 
+      // in case of an error we try to respond with a stale result from the stale-if-error cache
       if (request.requestCache) {
-        // short circuit in case of the cache does not fail fast enough for any reason
-        const cacheItem = await pTimeout(
-          this.cache.get(`staleIfError:${cacheKey}`),
-          request.requestCache.maxCacheTimeout,
-        )
+        const cacheItem = await this.cache.get(`staleIfError:${cacheKey}`)
 
         if (cacheItem) {
-          const response: Response<TResult> = sjson.parse(cacheItem)
+          const response: Response<TResult> = JSON.parse(cacheItem)
           response.isFromCache = true
           return response
         }
@@ -356,7 +348,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
     const cacheKey = this.onCacheKeyCalculation(request)
 
-    // check if we have any GET call in the cache to respond immediatly
+    // check if we have any GET call in the cache to respond immediately
     if (request.method === 'GET') {
       // Memoize GET calls for the same data source instance
       // a single instance of the data sources is scoped to one graphql request
@@ -377,13 +369,9 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       // try to fetch from shared cache
       if (request.requestCache) {
         try {
-          // short circuit in case of the cache does not fail fast enough for any reason
-          const cacheItem = await pTimeout(
-            this.cache.get(cacheKey),
-            request.requestCache.maxCacheTimeout,
-          )
+          const cacheItem = await this.cache.get(cacheKey)
           if (cacheItem) {
-            const cachedResponse: Response<TResult> = sjson.parse(cacheItem)
+            const cachedResponse: Response<TResult> = JSON.parse(cacheItem)
             cachedResponse.memoized = false
             cachedResponse.isFromCache = true
             return cachedResponse
