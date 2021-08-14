@@ -551,6 +551,49 @@ test('Should be able to define a custom cache key for request memoization', asyn
   t.deepEqual(response.body, wanted)
 })
 
+test('Should correctly calculate and sort query parameters', async (t) => {
+  t.plan(3)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    t.is(req.url, '/?a=1&b=2&z=z')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path, {
+        query: {
+          b: 2,
+          a: 1,
+          z: 'z',
+        },
+      })
+    }
+  })()
+
+  let response = await dataSource.getFoo()
+  t.deepEqual(response.body, wanted)
+})
+
 test('Should call onError on request error', async (t) => {
   t.plan(11)
 

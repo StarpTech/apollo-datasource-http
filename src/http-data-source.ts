@@ -109,6 +109,10 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
         }
       }
     }
+
+    // avoid cache fragmentation when the query order is not guaranteed
+    params.sort()
+
     return params.toString()
   }
 
@@ -342,7 +346,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   private async request<TResult = unknown>(request: Request): Promise<Response<TResult>> {
-    if (Object.keys(request?.query).length > 0) {
+    if (Object.keys(request.query).length > 0) {
       request.path = request.path + '?' + this.buildQueryString(request.query)
     }
 
