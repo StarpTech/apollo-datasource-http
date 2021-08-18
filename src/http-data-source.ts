@@ -127,7 +127,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   protected isResponseOk(statusCode: number): boolean {
-    return (statusCode >= 200 && statusCode <= 399) || statusCode === 304
+    return statusCode >= 200 && statusCode <= 399
   }
 
   protected isResponseCacheable<TResult = unknown>(
