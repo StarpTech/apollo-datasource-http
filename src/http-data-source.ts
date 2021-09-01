@@ -93,6 +93,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     super()
     this.memoizedResults = new QuickLRU({
       maxSize: this.options?.lru?.maxSize ? this.options.lru.maxSize : 100,
+      maxAge: this.options?.lru?.maxAge,
     })
     this.pool = options?.pool ?? new Pool(this.baseURL, options?.clientOptions)
     this.globalRequestOptions = options?.requestOptions
