@@ -1336,6 +1336,56 @@ test('Should only cache GET successful responses with the correct status code', 
   t.is(cacheMap.size, 0)
 })
 
+test('Global maxAge should be used when no maxAge was set or similar.', async (t) => {
+  const path = '/'
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.writeHead(500)
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  let testResponse: Response<any> | {
+    memoized: boolean
+  } = {
+    memoized: false,
+  };
+  const maxAge = 100;
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL, {
+        lru: {
+          maxAge: maxAge
+        }
+      })
+    }
+    getFoo() {
+      return this.get(path)
+    }
+    onResponse(_: Request, response: Response<any>) {
+      testResponse = response;
+      return response;
+    }
+  })()
+
+  const waitFor = (timeout: number) => new Promise((resolve) => {setTimeout(resolve, timeout);})
+
+  await dataSource.getFoo();
+  t.is(testResponse.memoized, false)
+  await dataSource.getFoo();
+  t.is(testResponse.memoized, true)
+  await waitFor(maxAge);
+  await dataSource.getFoo();
+  t.is(testResponse.memoized, false)
+})
+
 test('Response is not cached due to origin error', async (t) => {
   const path = '/'
 

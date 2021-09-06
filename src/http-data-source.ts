@@ -326,7 +326,6 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
           })
           .catch((err) => this.logger?.error(err))
       }
-
       return response
     } catch (error: any) {
       this.onError?.(error, request)
