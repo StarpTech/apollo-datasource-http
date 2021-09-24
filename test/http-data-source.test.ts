@@ -1438,3 +1438,55 @@ test('Should be able to pass custom Undici Pool', async (t) => {
 
   t.deepEqual(response.body, wanted)
 })
+
+test('Should be merge headers', async (t) => {
+  t.plan(2)
+
+  const path = '/'
+
+  const mockHeaders = {
+    'test-a': 'a',
+    'test-b': 'b'
+  }
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
+    res.write(JSON.stringify({
+      'test-a': req.headers['test-a'],
+      'test-b': req.headers['test-b']
+    }))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const pool = new Pool(baseURL)
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL, {
+        pool,
+        requestOptions: {
+          headers: {
+            'test-a': mockHeaders['test-a']
+          }
+        }
+      })
+    }
+    getFoo() {
+      return this.get(path, {headers: {
+        'test-b': mockHeaders['test-b']
+      }})
+    }
+  })()
+
+  const response = await dataSource.getFoo()
+
+  t.deepEqual(response.body, mockHeaders)
+})
