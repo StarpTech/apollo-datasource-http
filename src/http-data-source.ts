@@ -327,7 +327,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       }
 
       return response
-    } catch (error) {
+    } catch (error: any) {
       this.onError?.(error, request)
 
       // in case of an error we try to respond with a stale result from the stale-if-error cache
@@ -383,7 +383,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
           const response = this.performRequest<TResult>(options, cacheKey)
           this.memoizedResults.set(cacheKey, response)
           return response
-        } catch (error) {
+        } catch (error: any) {
           this.logger?.error(`Cache item '${cacheKey}' could not be loaded: ${error.message}`)
         }
       }
