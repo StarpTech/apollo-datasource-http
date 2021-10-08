@@ -364,9 +364,15 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       }
     }
 
+    const headers = {
+      ...(this.globalRequestOptions?.headers || {}),
+      ...request.headers,
+    }
+
     const options = {
       ...request,
       ...this.globalRequestOptions,
+      headers,
     }
 
     if (options.method === 'GET') {
