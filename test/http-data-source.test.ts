@@ -6,6 +6,7 @@ import querystring from 'querystring'
 import { HTTPDataSource, Request, Response, RequestError } from '../src'
 import { AddressInfo } from 'net'
 import { KeyValueCacheSetOptions } from 'apollo-server-caching'
+import FakeTimers from '@sinonjs/fake-timers'
 
 const agent = new Agent({
   keepAliveTimeout: 10, // milliseconds
@@ -1336,12 +1337,15 @@ test('Should only cache GET successful responses with the correct status code', 
   t.is(cacheMap.size, 0)
 })
 
-test('Global maxAge should be used when no maxAge was set or similar.', async (t) => {
+test.serial('Global maxAge should be used when no maxAge was set or similar.', async (t) => {
   const path = '/'
+
+  const clock = FakeTimers.install()
+  t.teardown(clock.uninstall.bind(clock))
 
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
-    res.writeHead(500)
+    res.writeHead(200)
     res.end()
     res.socket?.unref()
   })
@@ -1356,8 +1360,8 @@ test('Global maxAge should be used when no maxAge was set or similar.', async (t
     memoized: boolean
   } = {
     memoized: false,
-  };
-  const maxAge = 100;
+  }
+  const maxAge = 10000
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
       super(baseURL, {
@@ -1370,19 +1374,17 @@ test('Global maxAge should be used when no maxAge was set or similar.', async (t
       return this.get(path)
     }
     onResponse(_: Request, response: Response<any>) {
-      testResponse = response;
-      return response;
+      testResponse = response
+      return response
     }
   })()
 
-  const waitFor = (timeout: number) => new Promise((resolve) => {setTimeout(resolve, timeout);})
-
-  await dataSource.getFoo();
+  await dataSource.getFoo()
   t.is(testResponse.memoized, false)
-  await dataSource.getFoo();
+  await dataSource.getFoo()
   t.is(testResponse.memoized, true)
-  await waitFor(maxAge);
-  await dataSource.getFoo();
+  clock.tick(maxAge)
+  await dataSource.getFoo()
   t.is(testResponse.memoized, false)
 })
 

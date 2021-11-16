@@ -58,8 +58,10 @@
     "undici": "^4.4.2"
   },
   "devDependencies": {
+    "@sinonjs/fake-timers": "^8.1.0",
     "@tsconfig/node12": "^1.0.9",
     "@types/node": "^14.17.3",
+    "@types/sinonjs__fake-timers": "^8.1.0",
     "abort-controller": "^3.0.0",
     "apollo-datasource-rest": "^0.14.0",
     "ava": "^3.15.0",
