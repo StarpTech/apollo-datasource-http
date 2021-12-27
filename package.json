@@ -60,7 +60,10 @@
     "graphql": "^15.3.0 || ^16.0.0"
   },
   "devDependencies": {
+    "@sinonjs/fake-timers": "^8.1.0",
     "@tsconfig/node12": "^1.0.9",
+    "@types/node": "^14.17.3",
+    "@types/sinonjs__fake-timers": "^8.1.0",
     "@types/node": "^17.0.5",
     "abort-controller": "^3.0.0",
     "apollo-datasource-rest": "^3.4.0",
