@@ -92,7 +92,10 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   constructor(public readonly baseURL: string, private readonly options?: HTTPDataSourceOptions) {
     super()
     this.memoizedResults = new QuickLRU({
+      // The maximum number of items before evicting the least recently used items.
       maxSize: this.options?.lru?.maxSize ? this.options.lru.maxSize : 100,
+      // The maximum number of milliseconds an item should remain in cache.
+      // By default maxAge will be Infinity, which means that items will never expire.
       maxAge: this.options?.lru?.maxAge,
     })
     this.pool = options?.pool ?? new Pool(this.baseURL, options?.clientOptions)
