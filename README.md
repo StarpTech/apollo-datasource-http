@@ -143,6 +143,10 @@ maxmemory-policy allkeys-lru
 
 This will limit the cache to 10MB and removes the least recently used keys from the cache.
 
+## Versioning
+
+We follow [semver](https://semver.org/). Major version zero (0.y.z) is for initial development. Anything MAY change at any time. The public API **SHOULD NOT** be considered stable ([source](https://semver.org/#spec-item-4)).
+
 ## Node.js support
 
 We test this software against **latest** major releases of the [Node.js LTS policy](https://github.com/nodejs/Release). `Current` is included to catch regression earlier.
