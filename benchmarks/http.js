@@ -1,7 +1,7 @@
 // mostly copied from  https://github.com/Ethan-Arrowood/undici-fetch/blob/main/benchmarks/index.js
 
 const { createServer } = require('http')
-const { Client, Pool, errors } = require('undici')
+const { Pool } = require('undici')
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads')
 
 function printResults(results, n) {
