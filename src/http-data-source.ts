@@ -140,7 +140,13 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     request: Request,
     response: Response<TResult>,
   ): boolean {
-    return statusCodeCacheableByDefault.has(response.statusCode) && request.method === 'GET'
+    return statusCodeCacheableByDefault.has(response.statusCode) && this.isRequestCacheable(request)
+  }
+
+  protected isRequestCacheable(request: Request): boolean {
+    // default behaviour is to cache only get requests
+    // If extending to non GET requests take care to provide an adequate onCacheKeyCalculation and isResponseCacheable
+    return request.method === 'GET'
   }
 
   /**
@@ -201,7 +207,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    * Execute a HTTP GET request.
    * Note that the **memoizedResults** and **cache** will be checked before request is made.
    * By default the received response will be memoized.
-   * 
+   *
    * @param path the path to the resource
    * @param requestOptions
    */
@@ -380,9 +386,11 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
     const cacheKey = this.onCacheKeyCalculation(request)
 
-    // check if we have any GET call in the cache to respond immediately
-    if (request.method === 'GET') {
-      // Memoize GET calls for the same data source instance
+    const isRequestMemoizable = this.isRequestMemoizable(request)
+
+    // check if we have a memoizable call in the cache to respond immediately
+    if (isRequestMemoizable) {
+      // Memoize calls for the same data source instance
       // a single instance of the data sources is scoped to one graphql request
       if (this.memoizedResults.has(cacheKey)) {
         const response = await this.memoizedResults.get(cacheKey)!
@@ -403,7 +411,9 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       headers,
     }
 
-    if (options.method === 'GET') {
+    const requestIsCacheable = this.isRequestCacheable(request)
+
+    if (requestIsCacheable) {
       // try to fetch from shared cache
       if (request.requestCache) {
         try {
