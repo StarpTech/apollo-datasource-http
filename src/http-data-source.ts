@@ -403,7 +403,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
             return cachedResponse
           }
           const response = this.performRequest<TResult>(options, cacheKey)
-          if (request && this.isRequestMemoizable(request)) {
+          if (this.isRequestMemoizable(request)) {
             this.memoizedResults.set(cacheKey, response)
           }
 
