@@ -38,7 +38,7 @@ test('Should be able to make a simple GET call', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -78,7 +78,7 @@ test('Should be able to make a simple POST call', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -125,7 +125,7 @@ test('Should be able to make a simple POST with JSON body', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -166,7 +166,7 @@ test('Should be able to make a simple DELETE call', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -203,7 +203,7 @@ test('Should be able to make a simple PUT call', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -240,7 +240,7 @@ test('Should be able to make a simple PATCH call', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -278,7 +278,7 @@ test('Should be able to pass query params', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -317,7 +317,7 @@ test('Should error on HTTP errors > 299 and != 304', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -372,7 +372,7 @@ test('Should not parse content as JSON when content-type header is missing', asy
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -409,7 +409,7 @@ test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -467,7 +467,7 @@ test('Should not memoize subsequent GET calls for unsuccessful responses', async
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -529,7 +529,7 @@ test('Should be able to define a custom cache key for request memoization', asyn
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -574,7 +574,7 @@ test('Should correctly calculate and sort query parameters', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -611,7 +611,7 @@ test('Should call onError on request error', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -668,7 +668,7 @@ test('Should be possible to pass a request context', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -713,7 +713,7 @@ test.cb('Should abort request when abortController signal is called', (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const abortController = new AbortController()
 
@@ -769,7 +769,7 @@ test.cb('Should timeout because server does not respond fast enough', (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -826,7 +826,7 @@ test('Should be able to modify request in willSendRequest', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -869,7 +869,7 @@ test('Should be able to define base headers for every request', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -917,7 +917,7 @@ test('Initialize data source with cache and context', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -976,7 +976,7 @@ test('Should cache a GET response and respond with the result on subsequent call
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   let dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -1093,7 +1093,7 @@ test('Should respond with stale-if-error cache on origin error', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   let dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -1187,7 +1187,7 @@ test('Should not cache POST requests', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -1254,7 +1254,7 @@ test('Should only cache GET successful responses with the correct status code', 
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -1354,11 +1354,13 @@ test.serial('Global maxAge should be used when no maxAge was set or similar.', a
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
-  let testResponse: Response<any> | {
-    memoized: boolean
-  } = {
+  let testResponse:
+    | Response<any>
+    | {
+        memoized: boolean
+      } = {
     memoized: false,
   }
   const maxAge = 10000
@@ -1366,8 +1368,8 @@ test.serial('Global maxAge should be used when no maxAge was set or similar.', a
     constructor() {
       super(baseURL, {
         lru: {
-          maxAge: maxAge
-        }
+          maxAge: maxAge,
+        },
       })
     }
     getFoo() {
@@ -1402,7 +1404,7 @@ test('Response is not cached due to origin error', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
 
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
@@ -1472,7 +1474,7 @@ test('Should be able to pass custom Undici Pool', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
   const pool = new Pool(baseURL)
 
   const dataSource = new (class extends HTTPDataSource {
@@ -1498,17 +1500,19 @@ test('Should be merge headers', async (t) => {
 
   const mockHeaders = {
     'test-a': 'a',
-    'test-b': 'b'
+    'test-b': 'b',
   }
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
     res.writeHead(200, {
       'content-type': 'application/json',
     })
-    res.write(JSON.stringify({
-      'test-a': req.headers['test-a'],
-      'test-b': req.headers['test-b']
-    }))
+    res.write(
+      JSON.stringify({
+        'test-a': req.headers['test-a'],
+        'test-b': req.headers['test-b'],
+      }),
+    )
     res.end()
     res.socket?.unref()
   })
@@ -1517,7 +1521,7 @@ test('Should be merge headers', async (t) => {
 
   server.listen()
 
-  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+  const baseURL = getBaseUrlOf(server)
   const pool = new Pool(baseURL)
 
   const dataSource = new (class extends HTTPDataSource {
@@ -1526,15 +1530,17 @@ test('Should be merge headers', async (t) => {
         pool,
         requestOptions: {
           headers: {
-            'test-a': mockHeaders['test-a']
-          }
-        }
+            'test-a': mockHeaders['test-a'],
+          },
+        },
       })
     }
     getFoo() {
-      return this.get(path, {headers: {
-        'test-b': mockHeaders['test-b']
-      }})
+      return this.get(path, {
+        headers: {
+          'test-b': mockHeaders['test-b'],
+        },
+      })
     }
   })()
 
@@ -1542,3 +1548,8 @@ test('Should be merge headers', async (t) => {
 
   t.deepEqual(response.body, mockHeaders)
 })
+
+// Utils
+function getBaseUrlOf(server: http.Server) {
+  return `http://localhost:${(server.address() as AddressInfo)?.port}`
+}
