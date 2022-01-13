@@ -48,6 +48,8 @@ export type Request<T = unknown> = {
   origin: string
   path: string
   method: HttpMethod
+  // Indicates if the response of this request should be memoized
+  memoize?: boolean
   headers: Dictionary<string>
 } & CacheTTLOptions
 
@@ -142,6 +144,16 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   /**
+   * Checks if the GET request is memoizable. This validation is performed before the 
+   * response is set in **memoisedResults**.
+   * @param request 
+   * @returns 
+   */
+  protected isRequestMemoizable(request: Request): boolean {
+    return Boolean(request.memoize)
+  }
+
+  /**
    * onCacheKeyCalculation returns the key for the GET request.
    * The key is used to memoize the request in the LRU cache.
    *
@@ -193,6 +205,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       headers: {},
       query: {},
       body: null,
+      memoize: true,
       context: {},
       ...requestOptions,
       method: 'GET',
@@ -390,7 +403,10 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
             return cachedResponse
           }
           const response = this.performRequest<TResult>(options, cacheKey)
-          this.memoizedResults.set(cacheKey, response)
+          if (request && this.isRequestMemoizable(request)) {
+            this.memoizedResults.set(cacheKey, response)
+          }
+
           return response
         } catch (error: any) {
           this.logger?.error(`Cache item '${cacheKey}' could not be loaded: ${error.message}`)
@@ -398,7 +414,9 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       }
 
       const response = this.performRequest<TResult>(options, cacheKey)
-      this.memoizedResults.set(cacheKey, response)
+      if (this.isRequestMemoizable(request)) {
+        this.memoizedResults.set(cacheKey, response)
+      }
 
       return response
     }
