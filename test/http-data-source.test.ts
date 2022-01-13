@@ -445,6 +445,150 @@ test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
   t.falsy(response.maxTtl)
 })
 
+test('Should memoize subsequent GET calls to the same endpoint when the memoize option is undefined', async (t) => {
+  t.plan(17)
+
+  const path = '/'
+
+  const MAX_SUBSEQUENT_CALLS = 3
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
+    res.write(JSON.stringify(wanted))
+    setTimeout(() => res.end(), 50).unref()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = getBaseUrlOf(server)
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path)
+    }
+  })()
+
+  const firstCall = await dataSource.getFoo()
+  t.deepEqual(firstCall.body, wanted)
+  t.false(firstCall.isFromCache)
+  t.false(firstCall.memoized)
+  t.falsy(firstCall.maxTtl)
+
+  for (let currentCall = 0; currentCall < MAX_SUBSEQUENT_CALLS; currentCall++) {
+    const subsequentCall = await dataSource.getFoo()
+
+    t.deepEqual(subsequentCall.body, wanted)
+    t.false(subsequentCall.isFromCache)
+    t.true(subsequentCall.memoized)
+    t.falsy(subsequentCall.maxTtl)
+  }
+})
+
+test('Should memoize subsequent GET calls to the same endpoint when the memoize option is true', async (t) => {
+  t.plan(17)
+
+  const path = '/'
+
+  const MAX_SUBSEQUENT_CALLS = 3
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
+    res.write(JSON.stringify(wanted))
+    setTimeout(() => res.end(), 50).unref()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = getBaseUrlOf(server)
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path, { memoize: true })
+    }
+  })()
+
+  const firstCall = await dataSource.getFoo()
+  t.deepEqual(firstCall.body, wanted)
+  t.false(firstCall.isFromCache)
+  t.false(firstCall.memoized)
+  t.falsy(firstCall.maxTtl)
+
+  for (let currentCall = 0; currentCall < MAX_SUBSEQUENT_CALLS; currentCall++) {
+    const subsequentCall = await dataSource.getFoo()
+
+    t.deepEqual(subsequentCall.body, wanted)
+    t.false(subsequentCall.isFromCache)
+    t.true(subsequentCall.memoized)
+    t.falsy(subsequentCall.maxTtl)
+  }
+})
+
+test('Should not memoize subsequent GET calls to the same endpoint when the memoize option is false', async (t) => {
+  t.plan(15)
+
+  const path = '/'
+
+  const MAX_CALLS = 3
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
+    res.write(JSON.stringify(wanted))
+    setTimeout(() => res.end(), 50).unref()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = getBaseUrlOf(server)
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    getFoo() {
+      return this.get(path, { memoize: false })
+    }
+  })()
+
+  for (let currentCall = 0; currentCall < MAX_CALLS; currentCall++) {
+    const subsequentCall = await dataSource.getFoo()
+
+    t.deepEqual(subsequentCall.body, wanted)
+    t.false(subsequentCall.isFromCache)
+    t.false(subsequentCall.memoized)
+    t.falsy(subsequentCall.maxTtl)
+  }
+})
+
 test('Should not memoize subsequent GET calls for unsuccessful responses', async (t) => {
   t.plan(17)
 
