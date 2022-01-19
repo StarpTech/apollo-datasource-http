@@ -145,7 +145,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
   /**
    * Checks if the GET request is memoizable. This validation is performed before the 
-   * response is set in **memoisedResults**.
+   * response is set in **memoizedResults**.
    * @param request 
    * @returns *true* if request should be memoized
    */
