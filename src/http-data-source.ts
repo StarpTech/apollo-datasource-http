@@ -89,7 +89,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   private logger?: Logger
   private cache!: KeyValueCache<string>
   private globalRequestOptions?: RequestOptions
-  private readonly memoizedResults: QuickLRU<string, Promise<Response<any>>>
+  private readonly memoizedResults: QuickLRU<string, Response<any>>
 
   constructor(public readonly baseURL: string, private readonly options?: HTTPDataSourceOptions) {
     super()
@@ -144,9 +144,9 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   /**
-   * Checks if the GET request is memoizable. This validation is performed before the 
+   * Checks if the GET request is memoizable. This validation is performed before the
    * response is set in **memoizedResults**.
-   * @param request 
+   * @param request
    * @returns *true* if request should be memoized
    */
   protected isRequestMemoizable(request: Request): boolean {
@@ -325,6 +325,10 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
       this.onResponse<TResult>(request, response)
 
+      if (this.isRequestMemoizable(request)) {
+        this.memoizedResults.set(cacheKey, response)
+      }
+
       // let's see if we can fill the shared cache
       if (request.requestCache && this.isResponseCacheable<TResult>(request, response)) {
         response.maxTtl = request.requestCache.maxTtl
@@ -403,9 +407,6 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
             return cachedResponse
           }
           const response = this.performRequest<TResult>(options, cacheKey)
-          if (this.isRequestMemoizable(request)) {
-            this.memoizedResults.set(cacheKey, response)
-          }
 
           return response
         } catch (error: any) {
@@ -414,9 +415,6 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       }
 
       const response = this.performRequest<TResult>(options, cacheKey)
-      if (this.isRequestMemoizable(request)) {
-        this.memoizedResults.set(cacheKey, response)
-      }
 
       return response
     }
