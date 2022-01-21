@@ -150,7 +150,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    * @returns *true* if request should be memoized
    */
   protected isRequestMemoizable(request: Request): boolean {
-    return Boolean(request.memoize)
+    return Boolean(request.memoize) && request.method === 'GET'
   }
 
   /**
