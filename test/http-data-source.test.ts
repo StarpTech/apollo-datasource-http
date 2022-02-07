@@ -1500,11 +1500,7 @@ test.serial('Global maxAge should be used when no maxAge was set or similar.', a
 
   const baseURL = getBaseUrlOf(server)
 
-  let testResponse:
-    | Response<any>
-    | {
-        memoized: boolean
-      } = {
+  let testResponse: Pick<Response<any>, 'memoized'> = {
     memoized: false,
   }
   const maxAge = 10000
