@@ -48,6 +48,8 @@ export type Request<T = unknown> = {
   origin: string
   path: string
   method: HttpMethod
+  // Indicates if the response of this request should be memoized
+  memoize?: boolean
   headers: Dictionary<string>
 } & CacheTTLOptions
 
@@ -87,7 +89,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   private logger?: Logger
   private cache!: KeyValueCache<string>
   private globalRequestOptions?: RequestOptions
-  private readonly memoizedResults: QuickLRU<string, Promise<Response<any>>>
+  private readonly memoizedResults: QuickLRU<string, Response<any>>
 
   constructor(public readonly baseURL: string, private readonly options?: HTTPDataSourceOptions) {
     super()
@@ -142,6 +144,16 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   /**
+   * Checks if the GET request is memoizable. This validation is performed before the
+   * response is set in **memoizedResults**.
+   * @param request
+   * @returns *true* if request should be memoized
+   */
+  protected isRequestMemoizable(request: Request): boolean {
+    return Boolean(request.memoize) && request.method === 'GET'
+  }
+
+  /**
    * onCacheKeyCalculation returns the key for the GET request.
    * The key is used to memoize the request in the LRU cache.
    *
@@ -185,6 +197,14 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
   protected onError?(_error: Error, requestOptions: Request): void
 
+  /**
+   * Execute a HTTP GET request.
+   * Note that the **memoizedResults** and **cache** will be checked before request is made.
+   * By default the received response will be memoized.
+   * 
+   * @param path the path to the resource
+   * @param requestOptions
+   */
   public async get<TResult = unknown>(
     path: string,
     requestOptions?: RequestOptions,
@@ -193,6 +213,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       headers: {},
       query: {},
       body: null,
+      memoize: true,
       context: {},
       ...requestOptions,
       method: 'GET',
@@ -312,6 +333,10 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
       this.onResponse<TResult>(request, response)
 
+      if (this.isRequestMemoizable(request)) {
+        this.memoizedResults.set(cacheKey, response)
+      }
+
       // let's see if we can fill the shared cache
       if (request.requestCache && this.isResponseCacheable<TResult>(request, response)) {
         response.maxTtl = request.requestCache.maxTtl
@@ -390,7 +415,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
             return cachedResponse
           }
           const response = this.performRequest<TResult>(options, cacheKey)
-          this.memoizedResults.set(cacheKey, response)
+
           return response
         } catch (error: any) {
           this.logger?.error(`Cache item '${cacheKey}' could not be loaded: ${error.message}`)
@@ -398,7 +423,6 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       }
 
       const response = this.performRequest<TResult>(options, cacheKey)
-      this.memoizedResults.set(cacheKey, response)
 
       return response
     }
