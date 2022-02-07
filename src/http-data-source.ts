@@ -197,6 +197,14 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
   protected onError?(_error: Error, requestOptions: Request): void
 
+  /**
+   * Execute a HTTP GET request.
+   * Note that the **memoizedResults** and **cache** will be checked before request is made.
+   * By default the received response will be memoized.
+   * 
+   * @param path the path to the resource
+   * @param requestOptions
+   */
   public async get<TResult = unknown>(
     path: string,
     requestOptions?: RequestOptions,
