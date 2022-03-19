@@ -1310,7 +1310,7 @@ test('Should respond with stale-if-error cache on origin error', async (t) => {
   t.is(cacheMap.size, 1)
 })
 
-test('Should not cache POST requests', async (t) => {
+test('Should not cache POST requests by default', async (t) => {
   t.plan(6)
 
   const path = '/'
@@ -1479,6 +1479,76 @@ test('Should only cache GET successful responses with the correct status code', 
   t.falsy(response.maxTtl)
   t.deepEqual(response.body, wanted)
   t.is(cacheMap.size, 0)
+})
+
+test('Should cache POST successful responses if isRequestCacheable allows to do so', async (t) => {
+  t.plan(7)
+
+  const path = '/custom/cacheable/post/route'
+
+  const wanted = { name: 'foo' }
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'POST')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = `http://localhost:${(server.address() as AddressInfo)?.port}`
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    protected isRequestCacheable(request: Request): boolean {
+      return request.method === 'GET' || (request.method === 'POST' && request.path === path)
+    }
+    postFoo() {
+      return this.post(path, {
+        body: wanted,
+        requestCache: {
+          maxTtl: 10,
+          maxTtlIfError: 20,
+        },
+      })
+    }
+  })()
+
+  const cacheMap = new Map<string, string>()
+
+  dataSource.initialize({
+    context: {
+      a: 1,
+    },
+    cache: {
+      async delete(key: string) {
+        return cacheMap.delete(key)
+      },
+      async get(key: string) {
+        return cacheMap.get(key)
+      },
+      async set(key: string, value: string) {
+        cacheMap.set(key, value)
+      },
+    },
+  })
+
+  let response = await dataSource.postFoo()
+  t.deepEqual(response.body, wanted)
+  t.false(response.memoized)
+  t.false(response.isFromCache)
+
+  response = await dataSource.postFoo()
+  t.deepEqual(response.body, wanted)
+  t.false(response.memoized)
+  t.true(response.isFromCache)
 })
 
 test.serial('Global maxAge should be used when no maxAge was set or similar.', async (t) => {
