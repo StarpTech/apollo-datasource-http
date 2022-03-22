@@ -406,8 +406,8 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     }
 
     const options = {
-      ...request,
       ...this.globalRequestOptions,
+      ...request,
       headers,
     }
 
