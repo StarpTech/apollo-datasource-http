@@ -1923,6 +1923,57 @@ test('Should be able to decode brotli compression', async (t) => {
   t.deepEqual(response.body, { name: 'foo' })
 })
 
+test('Should be able to overwrite global request options', async (t) => {
+  t.plan(5)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    t.deepEqual(req.headers['x-foo'], 'qux')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = getBaseUrlOf(server)
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL, {
+        requestOptions: {
+          headers: {
+            'X-Foo': 'bar',
+          },
+          memoize: false
+        },
+      })
+    }
+    async onRequest(request: Request) {
+      t.deepEqual(request.headers, {
+        'X-Foo': 'qux',
+      })
+      t.true(request.memoize)
+    }
+    getFoo() {
+      return this.get(path, { headers: { 'X-Foo': 'qux' }, memoize: true})
+    }
+  })()
+
+  const response = await dataSource.getFoo()
+
+  t.deepEqual(response.body, wanted)
+})
+
 // Utils
 function getBaseUrlOf(server: http.Server) {
   return `http://localhost:${(server.address() as AddressInfo)?.port}`
