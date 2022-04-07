@@ -393,7 +393,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       // Memoize calls for the same data source instance
       // a single instance of the data sources is scoped to one graphql request
       if (this.memoizedResults.has(cacheKey)) {
-        const response = await this.memoizedResults.get(cacheKey)!
+        const response = this.memoizedResults.get(cacheKey)!
         response.memoized = true
         response.isFromCache = false
         return response
