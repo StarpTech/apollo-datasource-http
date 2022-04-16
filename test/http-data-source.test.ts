@@ -2,11 +2,11 @@ import anyTest, { TestInterface } from 'ava'
 import http from 'http'
 import { setGlobalDispatcher, Agent, Pool } from 'undici'
 import AbortController from 'abort-controller'
-import querystring from 'querystring'
 import { HTTPDataSource, Request, Response, RequestError } from '../src'
 import { AddressInfo } from 'net'
 import { KeyValueCacheSetOptions } from 'apollo-server-caching'
 import FakeTimers from '@sinonjs/fake-timers'
+import { URLSearchParams } from 'url'
 
 const agent = new Agent({
   keepAliveTimeout: 10, // milliseconds
@@ -306,9 +306,9 @@ test('Should error on HTTP errors > 299 and != 304', async (t) => {
   const path = '/'
 
   const server = http.createServer((req, res) => {
-    const queryObject = querystring.parse(req.url?.replace('/?', '')!)
+    const queryObject = new URLSearchParams(req.url?.replace('/?', '')!)
     t.is(req.method, 'GET')
-    res.writeHead(queryObject['statusCode'] as unknown as number)
+    res.writeHead(parseInt(queryObject.get('statusCode') || '0', 10))
     res.end()
     res.socket?.unref()
   })
@@ -597,9 +597,9 @@ test('Should not memoize subsequent GET calls for unsuccessful responses', async
   const wanted = { name: 'foo' }
 
   const server = http.createServer((req, res) => {
-    const queryObject = querystring.parse(req.url?.replace('/?', '')!)
+    const queryObject = new URLSearchParams(req.url?.replace('/?', '')!)
     t.is(req.method, 'GET')
-    res.writeHead(queryObject['statusCode'] as unknown as number, {
+    res.writeHead(parseInt(queryObject.get('statusCode') || '0', 10), {
       'content-type': 'application/json',
     })
     res.write(JSON.stringify(wanted))
@@ -1384,9 +1384,9 @@ test('Should only cache GET successful responses with the correct status code', 
 
   const wanted = { name: 'foo' }
   const server = http.createServer((req, res) => {
-    const queryObject = querystring.parse(req.url?.replace('/?', '')!)
+    const queryObject = new URLSearchParams(req.url?.replace('/?', '')!)
     t.is(req.method, 'GET')
-    res.writeHead(queryObject['statusCode'] as unknown as number, {
+    res.writeHead(parseInt(queryObject.get('statusCode') || '0', 10), {
       'content-type': 'application/json',
     })
     res.write(JSON.stringify(wanted))
