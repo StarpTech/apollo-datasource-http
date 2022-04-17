@@ -2,7 +2,7 @@ import test from 'ava'
 import http from 'http'
 import { createGzip, createDeflate, createBrotliCompress } from 'zlib'
 import { Readable } from 'stream';
-import { setGlobalDispatcher, Agent, Pool } from 'undici'
+import { setGlobalDispatcher, Agent, Pool, Dispatcher } from 'undici'
 import AbortController from 'abort-controller'
 import { HTTPDataSource, Request, Response, RequestError } from '../src'
 import { AddressInfo } from 'net'
@@ -388,8 +388,8 @@ test('Should not parse content as JSON when content-type header is missing', asy
   t.is(response.body, JSON.stringify(wanted))
 })
 
-test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
-  t.plan(17)
+test('Should memoize concurrent and subsequent GET calls to the same endpoint', async (t) => {
+  t.plan(16)
 
   const path = '/'
 
@@ -420,29 +420,28 @@ test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
     }
   })()
 
-  let response = await dataSource.getFoo()
-  t.deepEqual(response.body, wanted)
-  t.false(response.isFromCache)
-  t.false(response.memoized)
-  t.falsy(response.maxTtl)
+  const concurrent1 = dataSource.getFoo()
+  const concurrent2 = dataSource.getFoo()
+  const concurrent3 = dataSource.getFoo()
+  t.deepEqual((await concurrent1).body, wanted)
+  t.deepEqual((await concurrent2).body, wanted)
+  t.deepEqual((await concurrent3).body, wanted)
+  t.false((await concurrent1).isFromCache)
+  t.false((await concurrent1).isFromCache)
+  t.false((await concurrent1).isFromCache)
+  t.false((await concurrent1).memoized)
+  t.true((await concurrent2).memoized)
+  t.true((await concurrent3).memoized)
 
-  response = await dataSource.getFoo()
-  t.deepEqual(response.body, wanted)
-  t.false(response.isFromCache)
-  t.true(response.memoized)
-  t.falsy(response.maxTtl)
+  const subsequent2 = await dataSource.getFoo()
+  t.deepEqual(subsequent2.body, wanted)
+  t.false(subsequent2.isFromCache)
+  t.true(subsequent2.memoized)
 
-  response = await dataSource.getFoo()
-  t.deepEqual(response.body, wanted)
-  t.false(response.isFromCache)
-  t.true(response.memoized)
-  t.falsy(response.maxTtl)
-
-  response = await dataSource.getFoo()
-  t.deepEqual(response.body, wanted)
-  t.false(response.isFromCache)
-  t.true(response.memoized)
-  t.falsy(response.maxTtl)
+  const subsequent3 = await dataSource.getFoo()
+  t.deepEqual(subsequent3.body, wanted)
+  t.false(subsequent3.isFromCache)
+  t.true(subsequent3.memoized)
 })
 
 test('Should memoize subsequent GET calls to the same endpoint when the memoize option is undefined', async (t) => {
@@ -978,7 +977,7 @@ test('Should be able to modify request in willSendRequest', async (t) => {
     constructor() {
       super(baseURL)
     }
-    async onRequest(request: Request) {
+    async onRequest(request: Dispatcher.RequestOptions) {
       request.headers = {
         'X-Foo': 'bar',
       }
@@ -1027,7 +1026,7 @@ test('Should be able to define base headers for every request', async (t) => {
         },
       })
     }
-    async onRequest(request: Request) {
+    async onRequest(request: Dispatcher.RequestOptions) {
       t.deepEqual(request.headers, {
         'X-Foo': 'bar',
       })
@@ -1572,34 +1571,20 @@ test.serial('Global maxAge should be used when no maxAge was set or similar.', a
 
   const baseURL = getBaseUrlOf(server)
 
-  let testResponse: Pick<Response<any>, 'memoized'> = {
-    memoized: false,
-  }
   const maxAge = 10000
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
-      super(baseURL, {
-        lru: {
-          maxAge: maxAge,
-        },
-      })
+      super(baseURL, { lru: { maxAge } })
     }
     getFoo() {
       return this.get(path)
     }
-    onResponse(_: Request, response: Response<any>) {
-      testResponse = response
-      return response
-    }
   })()
 
-  await dataSource.getFoo()
-  t.is(testResponse.memoized, false)
-  await dataSource.getFoo()
-  t.is(testResponse.memoized, true)
+  t.is((await dataSource.getFoo()).memoized, false)
+  t.is((await dataSource.getFoo()).memoized, true)
   clock.tick(maxAge)
-  await dataSource.getFoo()
-  t.is(testResponse.memoized, false)
+  t.is((await dataSource.getFoo()).memoized, false)
 })
 
 test('Response is not cached due to origin error', async (t) => {
@@ -1954,24 +1939,22 @@ test('Should be able to overwrite global request options', async (t) => {
           headers: {
             'X-Foo': 'bar',
           },
-          memoize: false
+          memoize: false,
         },
       })
     }
-    async onRequest(request: Request) {
+    async onRequest(request: Dispatcher.RequestOptions) {
       t.deepEqual(request.headers, {
         'X-Foo': 'qux',
       })
-      t.true(request.memoize)
     }
     getFoo() {
-      return this.get(path, { headers: { 'X-Foo': 'qux' }, memoize: true})
+      return this.get(path, { headers: { 'X-Foo': 'qux' }, memoize: true })
     }
   })()
 
-  const response = await dataSource.getFoo()
-
-  t.deepEqual(response.body, wanted)
+  t.deepEqual((await dataSource.getFoo()).body, wanted)
+  t.true((await dataSource.getFoo()).memoized)
 })
 
 // Utils

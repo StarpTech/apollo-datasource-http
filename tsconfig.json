@@ -2,7 +2,6 @@
   "extends": "@tsconfig/node12/tsconfig.json",
   "compilerOptions": {
     "outDir": "dist",
-    "composite": true,
     "module": "commonjs",
     "moduleResolution": "node",
     "esModuleInterop": true,
@@ -11,7 +10,7 @@
     "declarationMap": true,
     "removeComments": true,
     "strict": true,
-    "allowJs": true,
+    "allowJs": false,
     "noImplicitAny": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
@@ -20,5 +19,7 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": "."
   },
-  "include": ["src", "test"]
+  "include": [
+    "src",
+  ]
 }
