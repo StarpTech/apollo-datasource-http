@@ -1,4 +1,4 @@
-import anyTest, { TestInterface } from 'ava'
+import test from 'ava'
 import http from 'http'
 import { setGlobalDispatcher, Agent, Pool } from 'undici'
 import AbortController from 'abort-controller'
@@ -14,8 +14,6 @@ const agent = new Agent({
 })
 
 setGlobalDispatcher(agent)
-
-const test = anyTest as TestInterface<{ path: string }>
 
 test('Should be able to make a simple GET call', async (t) => {
   t.plan(5)
@@ -837,7 +835,7 @@ test('Should be possible to pass a request context', async (t) => {
   await dataSource.getFoo()
 })
 
-test.cb('Should abort request when abortController signal is called', (t) => {
+test('Should abort request when abortController signal is called', async (t) => {
   t.plan(2)
 
   const path = '/'
@@ -873,7 +871,7 @@ test.cb('Should abort request when abortController signal is called', (t) => {
     }
   })()
 
-  t.throwsAsync(
+  const throwPromise = t.throwsAsync(
     async () => {
       try {
         await dataSource.getFoo()
@@ -888,12 +886,14 @@ test.cb('Should abort request when abortController signal is called', (t) => {
       message: 'Request aborted',
     },
     'Timeout',
-  ).finally(t.end)
+  )
 
   abortController.abort()
+
+  await throwPromise
 })
 
-test.cb('Should timeout because server does not respond fast enough', (t) => {
+test('Should timeout because server does not respond fast enough', async (t) => {
   t.plan(3)
 
   const path = '/'
@@ -930,7 +930,7 @@ test.cb('Should timeout because server does not respond fast enough', (t) => {
     }
   })()
 
-  t.throwsAsync(
+  await t.throwsAsync(
     async () => {
       try {
         await dataSource.getFoo()
@@ -945,7 +945,7 @@ test.cb('Should timeout because server does not respond fast enough', (t) => {
       message: 'Headers Timeout Error',
     },
     'Timeout',
-  ).finally(t.end)
+  )
 })
 
 test('Should be able to modify request in willSendRequest', async (t) => {
