@@ -3,6 +3,8 @@ import { Pool } from 'undici'
 import { STATUS_CODES } from 'http'
 import QuickLRU from '@alloc/quick-lru'
 
+const { createUnzip, createBrotliDecompress } = require('zlib');
+import streamToPromise from 'stream-to-promise';
 import { KeyValueCache } from 'apollo-server-caching'
 import Dispatcher, { HttpMethod, ResponseData } from 'undici/types/dispatcher'
 import { toApolloError } from 'apollo-server-errors'
@@ -317,16 +319,23 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       }
 
       const responseData = await this.pool.request(requestOptions)
-
-      let body = await responseData.body.text()
-      // can we parse it as JSON?
-      if (
-        responseData.headers['content-type']?.includes('application/json') &&
-        body.length &&
-        typeof body === 'string'
-      ) {
-        body = JSON.parse(body)
+      const body = responseData.body
+      const headers = responseData.headers
+      
+      let data: any;
+      switch (headers['content-encoding']) {
+        case 'br':
+          data = await streamToPromise(body.pipe(createBrotliDecompress()));
+          break;
+        case 'gzip':
+        case 'deflate':
+          data = await streamToPromise(body.pipe(createUnzip()));
+          break;
+        default:
+          data = await streamToPromise(body);
+          break;
       }
+      data = headers['content-type']?.includes('application/json') ? JSON.parse(data) : data.toString('utf-8');
 
       const response: Response<TResult> = {
         isFromCache: false,
@@ -334,7 +343,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
         ...responseData,
         // in case of the server does not properly respond with JSON we pass it as text.
         // this is necessary since POST, DELETE don't always have a JSON body.
-        body: body as unknown as TResult,
+        body: data as unknown as TResult,
       }
 
       this.onResponse<TResult>(request, response)
