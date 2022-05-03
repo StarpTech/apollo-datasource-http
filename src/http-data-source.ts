@@ -336,7 +336,8 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
           break
       }
 
-      let data: string = dataBuffer.toString('utf-8')
+      // This will be string initially, but may become any once JSON parsed.
+      let data: any = dataBuffer.toString('utf-8')
 
       // can we parse it as JSON?
       if (
