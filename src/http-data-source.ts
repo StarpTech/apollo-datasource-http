@@ -3,8 +3,8 @@ import { Pool } from 'undici'
 import { STATUS_CODES } from 'http'
 import QuickLRU from '@alloc/quick-lru'
 
-const { createUnzip, createBrotliDecompress } = require('zlib');
-import streamToPromise from 'stream-to-promise';
+import { createUnzip, createBrotliDecompress } from 'zlib'
+import streamToPromise from 'stream-to-promise'
 import { KeyValueCache } from 'apollo-server-caching'
 import Dispatcher, { HttpMethod, ResponseData } from 'undici/types/dispatcher'
 import { toApolloError } from 'apollo-server-errors'
@@ -321,22 +321,31 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       const responseData = await this.pool.request(requestOptions)
       const body = responseData.body
       const headers = responseData.headers
-      
-      let data: any;
+
+      let dataBuffer: Buffer
       switch (headers['content-encoding']) {
         case 'br':
-          data = await streamToPromise(body.pipe(createBrotliDecompress()));
-          break;
+          dataBuffer = await streamToPromise(body.pipe(createBrotliDecompress()))
+          break
         case 'gzip':
         case 'deflate':
-          data = await streamToPromise(body.pipe(createUnzip()));
-          break;
+          dataBuffer = await streamToPromise(body.pipe(createUnzip()))
+          break
         default:
-          data = await streamToPromise(body);
-          break;
+          dataBuffer = await streamToPromise(body)
+          break
       }
-      data = headers['content-type']?.includes('application/json') ? JSON.parse(data) : data.toString('utf-8');
 
+      let data: string = dataBuffer.toString('utf-8')
+
+      // can we parse it as JSON?
+      if (
+        responseData.headers['content-type']?.includes('application/json') &&
+        data.length &&
+        typeof data === 'string'
+      ) {
+        data = JSON.parse(data)
+      }
       const response: Response<TResult> = {
         isFromCache: false,
         memoized: false,
