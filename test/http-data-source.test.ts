@@ -1761,7 +1761,7 @@ test('Should be merge headers', async (t) => {
   t.deepEqual(response.body, mockHeaders)
 })
 
-test('Should be able decode gzip compression', async (t) => {
+test('Should be able to decode gzip compression', async (t) => {
   t.plan(4)
 
   const path = '/'
@@ -1815,7 +1815,7 @@ test('Should be able decode gzip compression', async (t) => {
   t.deepEqual(response.body, { name: 'foo' })
 })
 
-test('Should be able decode deflate compression', async (t) => {
+test('Should be able to decode deflate compression', async (t) => {
   t.plan(4)
 
   const path = '/'
@@ -1869,7 +1869,7 @@ test('Should be able decode deflate compression', async (t) => {
   t.deepEqual(response.body, { name: 'foo' })
 })
 
-test('Should be able decode brotli compression', async (t) => {
+test('Should be able to decode brotli compression', async (t) => {
   t.plan(4)
 
   const path = '/'
