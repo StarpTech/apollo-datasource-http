@@ -3,6 +3,8 @@ import { Pool } from 'undici'
 import { STATUS_CODES } from 'http'
 import QuickLRU from '@alloc/quick-lru'
 
+import { createUnzip, createBrotliDecompress } from 'zlib'
+import streamToPromise from 'stream-to-promise'
 import { KeyValueCache } from 'apollo-server-caching'
 import Dispatcher, { HttpMethod, ResponseData } from 'undici/types/dispatcher'
 import { toApolloError } from 'apollo-server-errors'
@@ -317,24 +319,41 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       }
 
       const responseData = await this.pool.request(requestOptions)
+      const body = responseData.body
+      const headers = responseData.headers
 
-      let body = await responseData.body.text()
+      let dataBuffer: Buffer
+      switch (headers['content-encoding']) {
+        case 'br':
+          dataBuffer = await streamToPromise(body.pipe(createBrotliDecompress()))
+          break
+        case 'gzip':
+        case 'deflate':
+          dataBuffer = await streamToPromise(body.pipe(createUnzip()))
+          break
+        default:
+          dataBuffer = await streamToPromise(body)
+          break
+      }
+
+      // This will be string initially, but may become any once JSON parsed.
+      let data: any = dataBuffer.toString('utf-8')
+
       // can we parse it as JSON?
       if (
         responseData.headers['content-type']?.includes('application/json') &&
-        body.length &&
-        typeof body === 'string'
+        data.length &&
+        typeof data === 'string'
       ) {
-        body = JSON.parse(body)
+        data = JSON.parse(data)
       }
-
       const response: Response<TResult> = {
         isFromCache: false,
         memoized: false,
         ...responseData,
         // in case of the server does not properly respond with JSON we pass it as text.
         // this is necessary since POST, DELETE don't always have a JSON body.
-        body: body as unknown as TResult,
+        body: data as unknown as TResult,
       }
 
       this.onResponse<TResult>(request, response)

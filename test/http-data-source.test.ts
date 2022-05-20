@@ -1,5 +1,7 @@
 import anyTest, { TestInterface } from 'ava'
 import http from 'http'
+import { createGzip, createDeflate, createBrotliCompress } from 'zlib'
+import { Readable } from 'stream';
 import { setGlobalDispatcher, Agent, Pool } from 'undici'
 import AbortController from 'abort-controller'
 import querystring from 'querystring'
@@ -1757,6 +1759,168 @@ test('Should be merge headers', async (t) => {
   const response = await dataSource.getFoo()
 
   t.deepEqual(response.body, mockHeaders)
+})
+
+test('Should be able to decode gzip compression', async (t) => {
+  t.plan(4)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    if (req.headers['accept-encoding'] === 'gzip') {
+      res.writeHead(200, { 
+        'content-encoding': 'gzip',
+        'content-type': 'application/json'
+      });
+      const stream = Readable.from([JSON.stringify(wanted)]);
+      stream.pipe(createGzip()).pipe(res);
+    } else{
+      res.writeHead(200, {
+        'content-type': 'application/json',
+      })
+      res.write(JSON.stringify(wanted))
+      res.end()
+    }
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = getBaseUrlOf(server)
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL, {
+        requestOptions: {
+          headers: {
+            'accept-encoding': 'gzip',
+          },
+        },
+      })
+    }
+    getFoo() {
+      return this.get(path)
+    }
+  })()
+
+  const response = await dataSource.getFoo()
+
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.falsy(response.maxTtl)
+  t.deepEqual(response.body, { name: 'foo' })
+})
+
+test('Should be able to decode deflate compression', async (t) => {
+  t.plan(4)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    if (req.headers['accept-encoding'] === 'deflate') {
+      res.writeHead(200, { 
+        'content-encoding': 'deflate',
+        'content-type': 'application/json'
+      });
+      const stream = Readable.from([JSON.stringify(wanted)]);
+      stream.pipe(createDeflate()).pipe(res);
+    } else{
+      res.writeHead(200, {
+        'content-type': 'application/json',
+      })
+      res.write(JSON.stringify(wanted))
+      res.end()
+    }
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = getBaseUrlOf(server)
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL, {
+        requestOptions: {
+          headers: {
+            'accept-encoding': 'deflate',
+          },
+        },
+      })
+    }
+    getFoo() {
+      return this.get(path)
+    }
+  })()
+
+  const response = await dataSource.getFoo()
+
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.falsy(response.maxTtl)
+  t.deepEqual(response.body, { name: 'foo' })
+})
+
+test('Should be able to decode brotli compression', async (t) => {
+  t.plan(4)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    if (req.headers['accept-encoding'] === 'br') {
+      res.writeHead(200, { 
+        'content-encoding': 'br',
+        'content-type': 'application/json'
+      });
+      const stream = Readable.from([JSON.stringify(wanted)]);
+      stream.pipe(createBrotliCompress()).pipe(res);
+    } else{
+      res.writeHead(200, {
+        'content-type': 'application/json',
+      })
+      res.write(JSON.stringify(wanted))
+      res.end()
+    }
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = getBaseUrlOf(server)
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL, {
+        requestOptions: {
+          headers: {
+            'accept-encoding': 'br',
+          },
+        },
+      })
+    }
+    getFoo() {
+      return this.get(path)
+    }
+  })()
+
+  const response = await dataSource.getFoo()
+
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.falsy(response.maxTtl)
+  t.deepEqual(response.body, { name: 'foo' })
 })
 
 // Utils
