@@ -2,6 +2,13 @@
 
 [![CI](https://github.com/StarpTech/apollo-datasource-http/actions/workflows/ci.yml/badge.svg)](https://github.com/StarpTech/apollo-datasource-http/actions/workflows/ci.yml)
 
+---
+
+> **Note**: Are you looking for the next generation API Developer Platform? 🔎 Have a look at: [WunderGraph](https://github.com/wundergraph/wundergraph)
+Turn your services, databases and 3rd party APIs into a secure unified API in just a few minutes. 🪄
+
+---
+
 Optimized JSON HTTP Data Source for Apollo Server
 
 - Uses [Undici](https://github.com/nodejs/undici) under the hood. It's around `60%` faster than `apollo-datasource-rest`
