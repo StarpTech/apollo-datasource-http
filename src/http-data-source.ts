@@ -2,7 +2,6 @@ import { DataSource, DataSourceConfig } from 'apollo-datasource'
 import { Pool } from 'undici'
 import { STATUS_CODES } from 'http'
 import QuickLRU from '@alloc/quick-lru'
-
 import { createUnzip, createBrotliDecompress } from 'zlib'
 import streamToPromise from 'stream-to-promise'
 import { KeyValueCache } from 'apollo-server-caching'
@@ -294,6 +293,45 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     })
   }
 
+  protected async parseBody<T>(response: Dispatcher.ResponseData): Promise<T> {
+    const body = response.body
+    const statusCode = response.statusCode
+    const headers = response.headers
+    const contentType = headers['content-type']
+    const contentLength = headers['content-length']
+    const contentEncoding = headers['content-encoding']
+
+    let dataBuffer: Buffer
+    
+    switch (contentEncoding) {
+      case 'br':
+        dataBuffer = await streamToPromise(body.pipe(createBrotliDecompress()))
+        break
+      case 'gzip':
+      case 'deflate':
+        dataBuffer = await streamToPromise(body.pipe(createUnzip()))
+        break
+      default:
+        dataBuffer = await streamToPromise(body)
+        break
+    }
+
+    let data = dataBuffer.toString('utf-8')
+
+    // can we parse it as JSON?
+    if (
+      statusCode !== 204 &&
+      contentLength !== '0' &&
+      contentType &&
+      (contentType.startsWith('application/json') ||
+        contentType.endsWith('+json'))
+    ) {
+      return JSON.parse(data)
+    }else {
+      return data as unknown as T
+    }
+  }
+
   private async performRequest<TResult>(
     request: Request,
     cacheKey: string,
@@ -335,39 +373,12 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       await this.onRequest?.(requestOptions)
 
       const responseData = await this.pool.request(requestOptions)
-      const body = responseData.body
-      const headers = responseData.headers
 
-      let dataBuffer: Buffer
-      switch (headers['content-encoding']) {
-        case 'br':
-          dataBuffer = await streamToPromise(body.pipe(createBrotliDecompress()))
-          break
-        case 'gzip':
-        case 'deflate':
-          dataBuffer = await streamToPromise(body.pipe(createUnzip()))
-          break
-        default:
-          dataBuffer = await streamToPromise(body)
-          break
-      }
-
-      // This will be string initially, but may become any once JSON parsed.
-      let data: any = dataBuffer.toString('utf-8')
-
-      // can we parse it as JSON?
-      if (
-        responseData.headers['content-type']?.includes('application/json') &&
-        data.length &&
-        typeof data === 'string'
-      ) {
-        data = JSON.parse(data)
-      }
+      const body = await this.parseBody<TResult>(responseData)
+      
       const response: Response<TResult> = {
         ...responseData,
-        // in case of the server does not properly respond with JSON we pass it as text.
-        // this is necessary since POST, DELETE don't always have a JSON body.
-        body: data,
+        body,
         isFromCache: false,
         memoized: false,
       }
