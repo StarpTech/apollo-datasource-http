@@ -434,7 +434,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
     if (requestIsCacheable) {
       // try to fetch from shared cache
-      if (request.requestCache) {
+      if (options.requestCache) {
         try {
           const cacheItem = await this.cache.get(cacheKey)
           if (cacheItem) {

@@ -1665,6 +1665,117 @@ test('Response is not cached due to origin error', async (t) => {
   t.is(cacheMap.size, 0)
 })
 
+test('Should cache a GET response and respond with the result on subsequent calls when cache setup by global request cache options', async (t) => {
+  t.plan(15)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = getBaseUrlOf(server)
+
+  let dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL, {
+        requestOptions: {
+          requestCache: {
+            maxTtl: 10,
+            maxTtlIfError: 20,
+          }
+        },
+      })
+    }
+    getFoo() {
+      return this.get(path)
+    }
+  })()
+
+  const cacheMap = new Map<string, string>()
+  const datasSourceConfig = {
+    context: {
+      a: 1,
+    },
+    cache: {
+      async delete(key: string) {
+        return cacheMap.delete(key)
+      },
+      async get(key: string) {
+        return cacheMap.get(key)
+      },
+      async set(key: string, value: string) {
+        cacheMap.set(key, value)
+      },
+    },
+  }
+
+  dataSource.initialize(datasSourceConfig)
+
+  let response = await dataSource.getFoo()
+  t.false(response.isFromCache)
+  t.false(response.memoized)
+  t.is(response.maxTtl, 10)
+  t.deepEqual(response.body, wanted)
+
+  response = await dataSource.getFoo()
+  t.false(response.isFromCache)
+  t.true(response.memoized)
+  t.is(response.maxTtl, 10)
+  t.deepEqual(response.body, wanted)
+
+  dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL, {
+        requestOptions: {
+          requestCache: {
+            maxTtl: 10,
+            maxTtlIfError: 20,
+          }
+        },
+      })
+    }
+    getFoo() {
+      return this.get(path)
+    }
+  })()
+
+  dataSource.initialize(datasSourceConfig)
+
+  response = await dataSource.getFoo()
+  t.true(response.isFromCache)
+  t.false(response.memoized)
+  t.is(response.maxTtl, 10)
+  t.deepEqual(response.body, wanted)
+
+  const cached = JSON.parse(cacheMap.get(baseURL + path)!)
+
+  t.is(cacheMap.size, 2)
+  t.like(cached, {
+    statusCode: 200,
+    trailers: {},
+    opaque: null,
+    headers: {
+      connection: 'keep-alive',
+      'keep-alive': 'timeout=5',
+      'transfer-encoding': 'chunked',
+    },
+    body: wanted,
+  })
+})
+
 test('Should be able to pass custom Undici Pool', async (t) => {
   t.plan(2)
 
