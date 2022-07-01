@@ -1665,7 +1665,7 @@ test('Response is not cached due to origin error', async (t) => {
   t.is(cacheMap.size, 0)
 })
 
-test('Should cache a GET response and respond with the result on subsequent calls when cache setup by global request cache options', async (t) => {
+test('Should cache a GET response and respond with the result on subsequent calls when cache is setup by global request cache options', async (t) => {
   t.plan(15)
 
   const path = '/'
@@ -1776,7 +1776,7 @@ test('Should cache a GET response and respond with the result on subsequent call
   })
 })
 
-test('Should cache a GET response using method-level cache options over global request cache options', async (t) => {
+test('Should cache a GET response using method-level cache options overriding global request cache options', async (t) => {
   t.plan(15)
 
   const path = '/'
