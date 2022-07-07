@@ -1,14 +1,14 @@
-import anyTest, { TestInterface } from 'ava'
+import test from 'ava'
 import http from 'http'
 import { createGzip, createDeflate, createBrotliCompress } from 'zlib'
-import { Readable } from 'stream';
-import { setGlobalDispatcher, Agent, Pool } from 'undici'
+import { Readable } from 'stream'
+import { setGlobalDispatcher, Agent, Pool, Dispatcher } from 'undici'
 import AbortController from 'abort-controller'
-import querystring from 'querystring'
 import { HTTPDataSource, Request, Response, RequestError } from '../src'
 import { AddressInfo } from 'net'
 import { KeyValueCacheSetOptions } from 'apollo-server-caching'
 import FakeTimers from '@sinonjs/fake-timers'
+import { URLSearchParams } from 'url'
 
 const agent = new Agent({
   keepAliveTimeout: 10, // milliseconds
@@ -16,8 +16,6 @@ const agent = new Agent({
 })
 
 setGlobalDispatcher(agent)
-
-const test = anyTest as TestInterface<{ path: string }>
 
 test('Should be able to make a simple GET call', async (t) => {
   t.plan(5)
@@ -308,9 +306,9 @@ test('Should error on HTTP errors > 299 and != 304', async (t) => {
   const path = '/'
 
   const server = http.createServer((req, res) => {
-    const queryObject = querystring.parse(req.url?.replace('/?', '')!)
+    const queryObject = new URLSearchParams(req.url?.replace('/?', '')!)
     t.is(req.method, 'GET')
-    res.writeHead(queryObject['statusCode'] as unknown as number)
+    res.writeHead(parseInt(queryObject.get('statusCode') || '0', 10))
     res.end()
     res.socket?.unref()
   })
@@ -390,8 +388,8 @@ test('Should not parse content as JSON when content-type header is missing', asy
   t.is(response.body, JSON.stringify(wanted))
 })
 
-test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
-  t.plan(17)
+test('Should memoize concurrent and subsequent GET calls to the same endpoint', async (t) => {
+  t.plan(16)
 
   const path = '/'
 
@@ -422,29 +420,28 @@ test('Should memoize subsequent GET calls to the same endpoint', async (t) => {
     }
   })()
 
-  let response = await dataSource.getFoo()
-  t.deepEqual(response.body, wanted)
-  t.false(response.isFromCache)
-  t.false(response.memoized)
-  t.falsy(response.maxTtl)
+  const concurrent1 = dataSource.getFoo()
+  const concurrent2 = dataSource.getFoo()
+  const concurrent3 = dataSource.getFoo()
+  t.deepEqual((await concurrent1).body, wanted)
+  t.deepEqual((await concurrent2).body, wanted)
+  t.deepEqual((await concurrent3).body, wanted)
+  t.false((await concurrent1).isFromCache)
+  t.false((await concurrent1).isFromCache)
+  t.false((await concurrent1).isFromCache)
+  t.false((await concurrent1).memoized)
+  t.true((await concurrent2).memoized)
+  t.true((await concurrent3).memoized)
 
-  response = await dataSource.getFoo()
-  t.deepEqual(response.body, wanted)
-  t.false(response.isFromCache)
-  t.true(response.memoized)
-  t.falsy(response.maxTtl)
+  const subsequent2 = await dataSource.getFoo()
+  t.deepEqual(subsequent2.body, wanted)
+  t.false(subsequent2.isFromCache)
+  t.true(subsequent2.memoized)
 
-  response = await dataSource.getFoo()
-  t.deepEqual(response.body, wanted)
-  t.false(response.isFromCache)
-  t.true(response.memoized)
-  t.falsy(response.maxTtl)
-
-  response = await dataSource.getFoo()
-  t.deepEqual(response.body, wanted)
-  t.false(response.isFromCache)
-  t.true(response.memoized)
-  t.falsy(response.maxTtl)
+  const subsequent3 = await dataSource.getFoo()
+  t.deepEqual(subsequent3.body, wanted)
+  t.false(subsequent3.isFromCache)
+  t.true(subsequent3.memoized)
 })
 
 test('Should memoize subsequent GET calls to the same endpoint when the memoize option is undefined', async (t) => {
@@ -599,9 +596,9 @@ test('Should not memoize subsequent GET calls for unsuccessful responses', async
   const wanted = { name: 'foo' }
 
   const server = http.createServer((req, res) => {
-    const queryObject = querystring.parse(req.url?.replace('/?', '')!)
+    const queryObject = new URLSearchParams(req.url?.replace('/?', '')!)
     t.is(req.method, 'GET')
-    res.writeHead(queryObject['statusCode'] as unknown as number, {
+    res.writeHead(parseInt(queryObject.get('statusCode') || '0', 10), {
       'content-type': 'application/json',
     })
     res.write(JSON.stringify(wanted))
@@ -839,7 +836,7 @@ test('Should be possible to pass a request context', async (t) => {
   await dataSource.getFoo()
 })
 
-test.cb('Should abort request when abortController signal is called', (t) => {
+test('Should abort request when abortController signal is called', async (t) => {
   t.plan(2)
 
   const path = '/'
@@ -875,7 +872,7 @@ test.cb('Should abort request when abortController signal is called', (t) => {
     }
   })()
 
-  t.throwsAsync(
+  const throwPromise = t.throwsAsync(
     async () => {
       try {
         await dataSource.getFoo()
@@ -890,12 +887,14 @@ test.cb('Should abort request when abortController signal is called', (t) => {
       message: 'Request aborted',
     },
     'Timeout',
-  ).finally(t.end)
+  )
 
   abortController.abort()
+
+  await throwPromise
 })
 
-test.cb('Should timeout because server does not respond fast enough', (t) => {
+test('Should timeout because server does not respond fast enough', async (t) => {
   t.plan(3)
 
   const path = '/'
@@ -932,7 +931,7 @@ test.cb('Should timeout because server does not respond fast enough', (t) => {
     }
   })()
 
-  t.throwsAsync(
+  await t.throwsAsync(
     async () => {
       try {
         await dataSource.getFoo()
@@ -947,7 +946,7 @@ test.cb('Should timeout because server does not respond fast enough', (t) => {
       message: 'Headers Timeout Error',
     },
     'Timeout',
-  ).finally(t.end)
+  )
 })
 
 test('Should be able to modify request in willSendRequest', async (t) => {
@@ -978,7 +977,7 @@ test('Should be able to modify request in willSendRequest', async (t) => {
     constructor() {
       super(baseURL)
     }
-    async onRequest(request: Request) {
+    async onRequest(request: Dispatcher.RequestOptions) {
       request.headers = {
         'X-Foo': 'bar',
       }
@@ -1027,7 +1026,7 @@ test('Should be able to define base headers for every request', async (t) => {
         },
       })
     }
-    async onRequest(request: Request) {
+    async onRequest(request: Dispatcher.RequestOptions) {
       t.deepEqual(request.headers, {
         'X-Foo': 'bar',
       })
@@ -1386,9 +1385,9 @@ test('Should only cache GET successful responses with the correct status code', 
 
   const wanted = { name: 'foo' }
   const server = http.createServer((req, res) => {
-    const queryObject = querystring.parse(req.url?.replace('/?', '')!)
+    const queryObject = new URLSearchParams(req.url?.replace('/?', '')!)
     t.is(req.method, 'GET')
-    res.writeHead(queryObject['statusCode'] as unknown as number, {
+    res.writeHead(parseInt(queryObject.get('statusCode') || '0', 10), {
       'content-type': 'application/json',
     })
     res.write(JSON.stringify(wanted))
@@ -1572,34 +1571,20 @@ test.serial('Global maxAge should be used when no maxAge was set or similar.', a
 
   const baseURL = getBaseUrlOf(server)
 
-  let testResponse: Pick<Response<any>, 'memoized'> = {
-    memoized: false,
-  }
   const maxAge = 10000
   const dataSource = new (class extends HTTPDataSource {
     constructor() {
-      super(baseURL, {
-        lru: {
-          maxAge: maxAge,
-        },
-      })
+      super(baseURL, { lru: { maxAge } })
     }
     getFoo() {
       return this.get(path)
     }
-    onResponse(_: Request, response: Response<any>) {
-      testResponse = response
-      return response
-    }
   })()
 
-  await dataSource.getFoo()
-  t.is(testResponse.memoized, false)
-  await dataSource.getFoo()
-  t.is(testResponse.memoized, true)
+  t.is((await dataSource.getFoo()).memoized, false)
+  t.is((await dataSource.getFoo()).memoized, true)
   clock.tick(maxAge)
-  await dataSource.getFoo()
-  t.is(testResponse.memoized, false)
+  t.is((await dataSource.getFoo()).memoized, false)
 })
 
 test('Response is not cached due to origin error', async (t) => {
@@ -1770,13 +1755,13 @@ test('Should be able to decode gzip compression', async (t) => {
 
   const server = http.createServer((req, res) => {
     if (req.headers['accept-encoding'] === 'gzip') {
-      res.writeHead(200, { 
+      res.writeHead(200, {
         'content-encoding': 'gzip',
-        'content-type': 'application/json'
-      });
-      const stream = Readable.from([JSON.stringify(wanted)]);
-      stream.pipe(createGzip()).pipe(res);
-    } else{
+        'content-type': 'application/json',
+      })
+      const stream = Readable.from([JSON.stringify(wanted)])
+      stream.pipe(createGzip()).pipe(res)
+    } else {
       res.writeHead(200, {
         'content-type': 'application/json',
       })
@@ -1824,13 +1809,13 @@ test('Should be able to decode deflate compression', async (t) => {
 
   const server = http.createServer((req, res) => {
     if (req.headers['accept-encoding'] === 'deflate') {
-      res.writeHead(200, { 
+      res.writeHead(200, {
         'content-encoding': 'deflate',
-        'content-type': 'application/json'
-      });
-      const stream = Readable.from([JSON.stringify(wanted)]);
-      stream.pipe(createDeflate()).pipe(res);
-    } else{
+        'content-type': 'application/json',
+      })
+      const stream = Readable.from([JSON.stringify(wanted)])
+      stream.pipe(createDeflate()).pipe(res)
+    } else {
       res.writeHead(200, {
         'content-type': 'application/json',
       })
@@ -1878,13 +1863,13 @@ test('Should be able to decode brotli compression', async (t) => {
 
   const server = http.createServer((req, res) => {
     if (req.headers['accept-encoding'] === 'br') {
-      res.writeHead(200, { 
+      res.writeHead(200, {
         'content-encoding': 'br',
-        'content-type': 'application/json'
-      });
-      const stream = Readable.from([JSON.stringify(wanted)]);
-      stream.pipe(createBrotliCompress()).pipe(res);
-    } else{
+        'content-type': 'application/json',
+      })
+      const stream = Readable.from([JSON.stringify(wanted)])
+      stream.pipe(createBrotliCompress()).pipe(res)
+    } else {
       res.writeHead(200, {
         'content-type': 'application/json',
       })
@@ -1921,6 +1906,55 @@ test('Should be able to decode brotli compression', async (t) => {
   t.false(response.memoized)
   t.falsy(response.maxTtl)
   t.deepEqual(response.body, { name: 'foo' })
+})
+
+test('Should be able to overwrite global request options', async (t) => {
+  t.plan(5)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    t.is(req.method, 'GET')
+    t.deepEqual(req.headers['x-foo'], 'qux')
+    res.writeHead(200, {
+      'content-type': 'application/json',
+    })
+    res.write(JSON.stringify(wanted))
+    res.end()
+    res.socket?.unref()
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = getBaseUrlOf(server)
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL, {
+        requestOptions: {
+          headers: {
+            'X-Foo': 'bar',
+          },
+          memoize: false,
+        },
+      })
+    }
+    async onRequest(request: Dispatcher.RequestOptions) {
+      t.deepEqual(request.headers, {
+        'X-Foo': 'qux',
+      })
+    }
+    getFoo() {
+      return this.get(path, { headers: { 'X-Foo': 'qux' }, memoize: true })
+    }
+  })()
+
+  t.deepEqual((await dataSource.getFoo()).body, wanted)
+  t.true((await dataSource.getFoo()).memoized)
 })
 
 // Utils

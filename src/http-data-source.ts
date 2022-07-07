@@ -2,7 +2,6 @@ import { DataSource, DataSourceConfig } from 'apollo-datasource'
 import { Pool } from 'undici'
 import { STATUS_CODES } from 'http'
 import QuickLRU from '@alloc/quick-lru'
-
 import { createUnzip, createBrotliDecompress } from 'zlib'
 import streamToPromise from 'stream-to-promise'
 import { KeyValueCache } from 'apollo-server-caching'
@@ -91,13 +90,13 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   private logger?: Logger
   private cache!: KeyValueCache<string>
   private globalRequestOptions?: RequestOptions
-  private readonly memoizedResults: QuickLRU<string, Response<any>>
+  private readonly memoizedResults: QuickLRU<string, Promise<Response<any>>>
 
   constructor(public readonly baseURL: string, private readonly options?: HTTPDataSourceOptions) {
     super()
     this.memoizedResults = new QuickLRU({
       // The maximum number of items before evicting the least recently used items.
-      maxSize: this.options?.lru?.maxSize ? this.options.lru.maxSize : 100,
+      maxSize: this.options?.lru?.maxSize || 100,
       // The maximum number of milliseconds an item should remain in cache.
       // By default maxAge will be Infinity, which means that items will never expire.
       maxAge: this.options?.lru?.maxAge,
@@ -178,13 +177,13 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
    *
    * @param request
    */
-  protected async onRequest?(request: Request): Promise<void>
+  protected async onRequest?(request: Dispatcher.RequestOptions): Promise<void>
 
   /**
    * onResponse is executed when a response has been received.
    * By default the implementation will throw for for unsuccessful responses.
    *
-   * @param _request
+   * @param request
    * @param response
    */
   protected onResponse<TResult = unknown>(
@@ -294,20 +293,72 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     })
   }
 
+  protected async parseBody<T>(response: Dispatcher.ResponseData): Promise<T> {
+    const body = response.body
+    const statusCode = response.statusCode
+    const headers = response.headers
+    const contentType = headers['content-type']
+    const contentLength = headers['content-length']
+    const contentEncoding = headers['content-encoding']
+
+    let dataBuffer: Buffer
+
+    switch (contentEncoding) {
+      case 'br':
+        dataBuffer = await streamToPromise(body.pipe(createBrotliDecompress()))
+        break
+      case 'gzip':
+      case 'deflate':
+        dataBuffer = await streamToPromise(body.pipe(createUnzip()))
+        break
+      default:
+        dataBuffer = await streamToPromise(body)
+        break
+    }
+
+    let data = dataBuffer.toString('utf-8')
+
+    // can we parse it as JSON?
+    if (
+      statusCode !== 204 &&
+      contentLength !== '0' &&
+      contentType &&
+      (contentType.startsWith('application/json') || contentType.endsWith('+json'))
+    ) {
+      return JSON.parse(data)
+    } else {
+      return data as unknown as T
+    }
+  }
+
   private async performRequest<TResult>(
     request: Request,
     cacheKey: string,
   ): Promise<Response<TResult>> {
+    const requestIsCacheable = this.isRequestCacheable(request)
+
+    // try to get response from cache
+    if (requestIsCacheable) {
+      try {
+        const cacheItem = await this.cache.get(cacheKey)
+        if (cacheItem) {
+          const cachedResponse: Response<TResult> = JSON.parse(cacheItem)
+          return { ...cachedResponse, isFromCache: true }
+        }
+      } catch (error: any) {
+        this.logger?.error(`Cache item '${cacheKey}' could not be loaded: ${error.message}`)
+      }
+    }
+
     try {
-      // in case of JSON set appropriate content-type header
+      // do the request
       if (request.body !== null && typeof request.body === 'object') {
+        // in case of JSON set appropriate content-type header
         if (request.headers['content-type'] === undefined) {
           request.headers['content-type'] = 'application/json; charset=utf-8'
         }
         request.body = JSON.stringify(request.body)
       }
-
-      await this.onRequest?.(request)
 
       const requestOptions: Dispatcher.RequestOptions = {
         method: request.method,
@@ -318,56 +369,24 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
         body: request.body as string,
       }
 
+      await this.onRequest?.(requestOptions)
+
       const responseData = await this.pool.request(requestOptions)
-      const body = responseData.body
-      const headers = responseData.headers
 
-      let dataBuffer: Buffer
-      switch (headers['content-encoding']) {
-        case 'br':
-          dataBuffer = await streamToPromise(body.pipe(createBrotliDecompress()))
-          break
-        case 'gzip':
-        case 'deflate':
-          dataBuffer = await streamToPromise(body.pipe(createUnzip()))
-          break
-        default:
-          dataBuffer = await streamToPromise(body)
-          break
-      }
+      const body = await this.parseBody<TResult>(responseData)
 
-      // This will be string initially, but may become any once JSON parsed.
-      let data: any = dataBuffer.toString('utf-8')
-
-      // can we parse it as JSON?
-      if (
-        responseData.headers['content-type']?.includes('application/json') &&
-        data.length &&
-        typeof data === 'string'
-      ) {
-        data = JSON.parse(data)
-      }
       const response: Response<TResult> = {
+        ...responseData,
+        body,
         isFromCache: false,
         memoized: false,
-        ...responseData,
-        // in case of the server does not properly respond with JSON we pass it as text.
-        // this is necessary since POST, DELETE don't always have a JSON body.
-        body: data as unknown as TResult,
       }
 
       this.onResponse<TResult>(request, response)
 
-      if (this.isRequestMemoizable(request)) {
-        this.memoizedResults.set(cacheKey, response)
-      }
-
-      // let's see if we can fill the shared cache
       if (request.requestCache && this.isResponseCacheable<TResult>(request, response)) {
         response.maxTtl = request.requestCache.maxTtl
         const cachedResponse = JSON.stringify(response)
-
-        // respond with the result immediately without waiting for the cache
         this.cache
           .set(cacheKey, cachedResponse, {
             ttl: request.requestCache.maxTtl,
@@ -379,6 +398,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
           })
           .catch((err) => this.logger?.error(err))
       }
+
       return response
     } catch (error: any) {
       this.onError?.(error, request)
@@ -389,8 +409,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
 
         if (cacheItem) {
           const response: Response<TResult> = JSON.parse(cacheItem)
-          response.isFromCache = true
-          return response
+          return { ...response, isFromCache: true }
         }
       }
 
@@ -399,63 +418,53 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
   }
 
   private async request<TResult = unknown>(request: Request): Promise<Response<TResult>> {
-    if (Object.keys(request.query).length > 0) {
-      request.path = request.path + '?' + this.buildQueryString(request.query)
+    const options: Request = {
+      ...this.globalRequestOptions,
+      ...request,
+      headers: {
+        ...(this.globalRequestOptions?.headers || {}),
+        ...request.headers,
+      },
     }
 
-    const cacheKey = this.onCacheKeyCalculation(request)
+    if (Object.keys(options.query).length > 0) {
+      options.path = options.path + '?' + this.buildQueryString(options.query)
+    }
 
-    const isRequestMemoizable = this.isRequestMemoizable(request)
+    const cacheKey = this.onCacheKeyCalculation(options)
+
+    const isRequestMemoizable = this.isRequestMemoizable(options)
 
     // check if we have a memoizable call in the cache to respond immediately
     if (isRequestMemoizable) {
       // Memoize calls for the same data source instance
       // a single instance of the data sources is scoped to one graphql request
-      if (this.memoizedResults.has(cacheKey)) {
-        const response = await this.memoizedResults.get(cacheKey)!
-        response.memoized = true
-        response.isFromCache = false
-        return response
+      let promise = this.memoizedResults.get(cacheKey)
+      if (promise) {
+        return { ...(await promise), memoized: true }
       }
+      promise = this.trace(options, () => this.performRequest<TResult>(options, cacheKey))
+      this.memoizedResults.set(cacheKey, promise)
+      return promise
+    } else {
+      this.memoizedResults.delete(cacheKey)
+      const promise = this.trace(options, () => this.performRequest<TResult>(options, cacheKey))
+      return promise
     }
+  }
 
-    const headers = {
-      ...(this.globalRequestOptions?.headers || {}),
-      ...request.headers,
-    }
-
-    const options = {
-      ...request,
-      ...this.globalRequestOptions,
-      headers,
-    }
-
-    const requestIsCacheable = this.isRequestCacheable(request)
-
-    if (requestIsCacheable) {
-      // try to fetch from shared cache
-      if (request.requestCache) {
-        try {
-          const cacheItem = await this.cache.get(cacheKey)
-          if (cacheItem) {
-            const cachedResponse: Response<TResult> = JSON.parse(cacheItem)
-            cachedResponse.memoized = false
-            cachedResponse.isFromCache = true
-            return cachedResponse
-          }
-          const response = this.performRequest<TResult>(options, cacheKey)
-
-          return response
-        } catch (error: any) {
-          this.logger?.error(`Cache item '${cacheKey}' could not be loaded: ${error.message}`)
-        }
+  protected async trace<TResult>(request: Request, fn: () => Promise<TResult>): Promise<TResult> {
+    if (process.env.NODE_ENV === 'development') {
+      const startTime = Date.now()
+      try {
+        return await fn()
+      } finally {
+        const duration = Date.now() - startTime
+        const label = `${request.method || 'GET'} ${request.path}`
+        this.logger?.debug(`${label} (${duration}ms)`)
       }
-
-      const response = this.performRequest<TResult>(options, cacheKey)
-
-      return response
+    } else {
+      return fn()
     }
-
-    return this.performRequest<TResult>(options, cacheKey)
   }
 }

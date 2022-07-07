@@ -14,6 +14,9 @@ jobs:
     - uses: actions/setup-node@v1
       with:
         node-version: ${{ matrix.nodejs }}
+        
+    - name: Update npm
+      run: npm install -g npm@latest
 
     - name: Install
       run: |
