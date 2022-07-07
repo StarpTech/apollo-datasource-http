@@ -302,7 +302,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     const contentEncoding = headers['content-encoding']
 
     let dataBuffer: Buffer
-    
+
     switch (contentEncoding) {
       case 'br':
         dataBuffer = await streamToPromise(body.pipe(createBrotliDecompress()))
@@ -323,11 +323,10 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       statusCode !== 204 &&
       contentLength !== '0' &&
       contentType &&
-      (contentType.startsWith('application/json') ||
-        contentType.endsWith('+json'))
+      (contentType.startsWith('application/json') || contentType.endsWith('+json'))
     ) {
       return JSON.parse(data)
-    }else {
+    } else {
       return data as unknown as T
     }
   }
@@ -375,7 +374,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       const responseData = await this.pool.request(requestOptions)
 
       const body = await this.parseBody<TResult>(responseData)
-      
+
       const response: Response<TResult> = {
         ...responseData,
         body,
