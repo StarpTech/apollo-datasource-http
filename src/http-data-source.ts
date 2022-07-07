@@ -462,7 +462,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       } finally {
         const duration = Date.now() - startTime
         const label = `${request.method || 'GET'} ${request.path}`
-        console.log(`${label} (${duration}ms)`)
+        this.logger?.debug(`${label} (${duration}ms)`)
       }
     } else {
       return fn()
