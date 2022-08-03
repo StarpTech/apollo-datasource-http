@@ -347,14 +347,6 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       ) {
         data = JSON.parse(data)
       }
-      // const response: Response<TResult> = {
-      //   isFromCache: false,
-      //   memoized: false,
-      //   ...responseData,
-      //   // in case of the server does not properly respond with JSON we pass it as text.
-      //   // this is necessary since POST, DELETE don't always have a JSON body.
-      //   body: data as unknown as TResult,
-      // }
 
       const response: Response<TResult> = this.onResponse(request, {
         isFromCache: false,
