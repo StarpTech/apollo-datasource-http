@@ -7,9 +7,7 @@ const { Worker, isMainThread, parentPort, workerData } = require('worker_threads
 function printResults(results, n) {
   console.log(`Results for ${n} subsequent requests: `)
   const baseKey = 'apollo-datasource-http (http1)'
-  const baselineTiming = Number.parseInt(
-    results[baseKey].endTime - results[baseKey].startTime,
-  )
+  const baselineTiming = Number.parseInt(results[baseKey].endTime - results[baseKey].startTime)
   for (const [key, timing] of Object.entries(results)) {
     const elapsedTT = Number.parseFloat(timing.endTime - timing.startTime)
     console.log(
@@ -78,7 +76,7 @@ if (isMainThread) {
         return new (class MoviesAPI extends HTTPDataSource {
           constructor() {
             super(url, {
-              pool
+              pool,
             })
           }
           async getFoo(path) {
