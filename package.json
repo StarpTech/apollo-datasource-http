@@ -1,15 +1,15 @@
 {
   "name": "apollo-datasource-http",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "author": "Dustin Deus <deusdustin@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/StarpTech/apollo-datasource-http"
+    "url": "https://github.com/tdipadova3rd/apollo-datasource-http"
   },
-  "homepage": "https://github.com/StarpTech/apollo-datasource-http#readme",
+  "homepage": "https://github.com/tdipadova3rd/apollo-datasource-http#readme",
   "bugs": {
-    "url": "https://github.com/StarpTech/apollo-datasource-http/issues"
+    "url": "https://github.com/tdipadova3rd/apollo-datasource-http/issues"
   },
   "scripts": {
     "build": "tsc",
@@ -27,7 +27,6 @@
   "keywords": [
     "apollo",
     "data-source",
-    "rest",
     "json",
     "rest",
     "graphql"

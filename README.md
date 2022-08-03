@@ -1,6 +1,6 @@
 # Apollo HTTP Data Source
 
-[![CI](https://github.com/StarpTech/apollo-datasource-http/actions/workflows/ci.yml/badge.svg)](https://github.com/StarpTech/apollo-datasource-http/actions/workflows/ci.yml)
+[![CI](https://github.com/tdipadova3rd/apollo-datasource-http/actions/workflows/ci.yml/badge.svg)](https://github.com/tdipadova3rd/apollo-datasource-http/actions/workflows/ci.yml)
 
 ---
 
