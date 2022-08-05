@@ -133,7 +133,7 @@ const datasource = new (class MoviesAPI extends HTTPDataSource {
 
 ## Error handling
 
-The http client throws for unsuccessful responses (statusCode >= 400). In case of an request error `onError` is executed. By default the error is rethrown as a `ApolloError` to avoid exposing sensible information.
+The http client throws for unsuccessful responses (statusCode >= 400). In case of an request error `onError` is executed. By default the error is rethrown as a `ApolloError` to avoid exposing sensitive information.
 
 ## Benchmark
 
