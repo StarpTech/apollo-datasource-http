@@ -1,5 +1,5 @@
 import { DataSource, DataSourceConfig } from 'apollo-datasource'
-import { Pool } from 'undici'
+import { Headers, Pool } from 'undici'
 import { STATUS_CODES } from 'http'
 import QuickLRU from '@alloc/quick-lru'
 
@@ -46,6 +46,9 @@ export type Request<T = unknown> = {
   query: Dictionary<string | number>
   body: T
   signal?: AbortSignal | EventEmitter | null
+  /**
+   * Skips JSON.stringify coersion of Request.body
+   */
   json?: boolean
   origin: string
   path: string
@@ -299,9 +302,14 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     cacheKey: string,
   ): Promise<Response<TResult>> {
     try {
-      // in case of JSON set appropriate content-type header
-      if (request.body !== null && typeof request.body === 'object') {
-        if (request.headers['content-type'] === undefined) {
+      if (request.json === false) {
+        // skip coercing to json
+      } else if (request.body !== null && typeof request.body === 'object') {
+        if (request.headers instanceof Headers) {
+          if (!request.headers.has('content-type')) {
+            request.headers.set('content-type', 'application/json; charset=utf-8')
+          }
+        } else if (request.headers['content-type'] === undefined) {
           request.headers['content-type'] = 'application/json; charset=utf-8'
         }
         request.body = JSON.stringify(request.body)
