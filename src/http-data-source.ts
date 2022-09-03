@@ -1,5 +1,5 @@
 import { DataSource, DataSourceConfig } from 'apollo-datasource'
-import { Headers, Pool } from 'undici'
+import { Pool } from 'undici'
 import { STATUS_CODES } from 'http'
 import QuickLRU from '@alloc/quick-lru'
 
@@ -305,11 +305,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       if (request.json === false) {
         // skip coercing to json
       } else if (request.body !== null && typeof request.body === 'object') {
-        if (request.headers instanceof Headers) {
-          if (!request.headers.has('content-type')) {
-            request.headers.set('content-type', 'application/json; charset=utf-8')
-          }
-        } else if (request.headers['content-type'] === undefined) {
+        if (request.headers['content-type'] === undefined) {
           request.headers['content-type'] = 'application/json; charset=utf-8'
         }
         request.body = JSON.stringify(request.body)
