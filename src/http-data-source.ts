@@ -305,6 +305,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
       if (request.json === false) {
         // skip coercing to json
       } else if (request.body !== null && typeof request.body === 'object') {
+        // in case of JSON set appropriate content-type header
         if (request.headers['content-type'] === undefined) {
           request.headers['content-type'] = 'application/json; charset=utf-8'
         }
