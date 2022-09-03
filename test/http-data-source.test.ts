@@ -1,8 +1,10 @@
 import anyTest, { TestInterface } from 'ava'
 import http from 'http'
 import { createGzip, createDeflate, createBrotliCompress } from 'zlib'
-import { Readable } from 'stream';
+import { Readable } from 'stream'
 import { setGlobalDispatcher, Agent, Pool } from 'undici'
+import FormData from 'form-data'
+import { parse } from 'parse-multipart-data'
 import AbortController from 'abort-controller'
 import querystring from 'querystring'
 import { HTTPDataSource, Request, Response, RequestError } from '../src'
@@ -138,6 +140,71 @@ test('Should be able to make a simple POST with JSON body', async (t) => {
         body: {
           foo: 'bar',
         },
+      })
+    }
+  })()
+
+  const response = await dataSource.postFoo()
+
+  t.deepEqual(response.body, { name: 'foo' })
+})
+
+test('Should be able to make a simple POST with FormData body', async (t) => {
+  t.plan(5)
+
+  const path = '/'
+
+  const wanted = { name: 'foo' }
+
+  const server = http.createServer((req, res) => {
+    const contentType = req.headers['content-type']
+    t.is(req.method, 'POST')
+    t.truthy(contentType)
+    t.regex(
+      // @ts-expect-error asserting truthy above
+      contentType,
+      /multipart\/form\-data/,
+    )
+
+    let raw = ''
+
+    req.on('data', (chunk) => {
+      raw += chunk
+    })
+    req.on('end', () => {
+      const data = parse(
+        Buffer.from(raw),
+        // @ts-expect-error asserting truthy above
+        contentType.replace('multipart/form-data; boundary=', ''),
+      ).map((part) => ({ name: part.name, data: part.data.toString('utf8') }))
+
+      t.deepEqual(data, [{ name: 'foo', data: 'bar' }])
+      res.writeHead(200, {
+        'content-type': 'application/json',
+      })
+      res.write(JSON.stringify(wanted))
+      res.end()
+      res.socket?.unref()
+    })
+  })
+
+  t.teardown(server.close.bind(server))
+
+  server.listen()
+
+  const baseURL = getBaseUrlOf(server)
+
+  const dataSource = new (class extends HTTPDataSource {
+    constructor() {
+      super(baseURL)
+    }
+    postFoo() {
+      const form = new FormData()
+      form.append('foo', 'bar')
+      return this.post(path, {
+        headers: form.getHeaders(),
+        json: false,
+        body: form.getBuffer(),
       })
     }
   })()
