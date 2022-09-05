@@ -1,7 +1,7 @@
 import anyTest, { TestInterface } from 'ava'
 import http from 'http'
 import { createGzip, createDeflate, createBrotliCompress } from 'zlib'
-import { Readable } from 'stream';
+import { Readable } from 'stream'
 import { setGlobalDispatcher, Agent, Pool } from 'undici'
 import AbortController from 'abort-controller'
 import querystring from 'querystring'
@@ -267,7 +267,7 @@ test('Should be able to pass query params', async (t) => {
 
   const server = http.createServer((req, res) => {
     t.is(req.method, 'GET')
-    t.is(req.url, '/?a=1&b=2')
+    t.is(req.url, '/?a=1&b=2&c=false')
     res.writeHead(200, {
       'content-type': 'application/json',
     })
@@ -291,7 +291,8 @@ test('Should be able to pass query params', async (t) => {
         query: {
           a: 1,
           b: '2',
-          c: undefined,
+          c: false,
+          e: undefined,
         },
       })
     }
@@ -1770,13 +1771,13 @@ test('Should be able to decode gzip compression', async (t) => {
 
   const server = http.createServer((req, res) => {
     if (req.headers['accept-encoding'] === 'gzip') {
-      res.writeHead(200, { 
+      res.writeHead(200, {
         'content-encoding': 'gzip',
-        'content-type': 'application/json'
-      });
-      const stream = Readable.from([JSON.stringify(wanted)]);
-      stream.pipe(createGzip()).pipe(res);
-    } else{
+        'content-type': 'application/json',
+      })
+      const stream = Readable.from([JSON.stringify(wanted)])
+      stream.pipe(createGzip()).pipe(res)
+    } else {
       res.writeHead(200, {
         'content-type': 'application/json',
       })
@@ -1824,13 +1825,13 @@ test('Should be able to decode deflate compression', async (t) => {
 
   const server = http.createServer((req, res) => {
     if (req.headers['accept-encoding'] === 'deflate') {
-      res.writeHead(200, { 
+      res.writeHead(200, {
         'content-encoding': 'deflate',
-        'content-type': 'application/json'
-      });
-      const stream = Readable.from([JSON.stringify(wanted)]);
-      stream.pipe(createDeflate()).pipe(res);
-    } else{
+        'content-type': 'application/json',
+      })
+      const stream = Readable.from([JSON.stringify(wanted)])
+      stream.pipe(createDeflate()).pipe(res)
+    } else {
       res.writeHead(200, {
         'content-type': 'application/json',
       })
@@ -1878,13 +1879,13 @@ test('Should be able to decode brotli compression', async (t) => {
 
   const server = http.createServer((req, res) => {
     if (req.headers['accept-encoding'] === 'br') {
-      res.writeHead(200, { 
+      res.writeHead(200, {
         'content-encoding': 'br',
-        'content-type': 'application/json'
-      });
-      const stream = Readable.from([JSON.stringify(wanted)]);
-      stream.pipe(createBrotliCompress()).pipe(res);
-    } else{
+        'content-type': 'application/json',
+      })
+      const stream = Readable.from([JSON.stringify(wanted)])
+      stream.pipe(createBrotliCompress()).pipe(res)
+    } else {
       res.writeHead(200, {
         'content-type': 'application/json',
       })
