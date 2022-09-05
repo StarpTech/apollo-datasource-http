@@ -43,7 +43,7 @@ export type RequestOptions = Omit<Partial<Request>, 'origin' | 'path' | 'method'
 
 export type Request<T = unknown> = {
   context: Dictionary<string>
-  query: Dictionary<string | number>
+  query: Dictionary<string | number | boolean>
   body: T
   signal?: AbortSignal | EventEmitter | null
   json?: boolean
@@ -107,7 +107,7 @@ export abstract class HTTPDataSource<TContext = any> extends DataSource {
     this.logger = options?.logger
   }
 
-  private buildQueryString(query: Dictionary<string | number>): string {
+  private buildQueryString(query: Dictionary<string | number | boolean>): string {
     const params = new URLSearchParams()
     for (const key in query) {
       if (Object.prototype.hasOwnProperty.call(query, key)) {
