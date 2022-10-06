@@ -1,4 +1,4 @@
-import anyTest, { TestInterface } from 'ava'
+import test from 'ava'
 import http from 'http'
 import { createGzip, createDeflate, createBrotliCompress } from 'zlib'
 import { Readable } from 'stream';
@@ -16,8 +16,6 @@ const agent = new Agent({
 })
 
 setGlobalDispatcher(agent)
-
-const test = anyTest as TestInterface<{ path: string }>
 
 test('Should be able to make a simple GET call', async (t) => {
   t.plan(5)
@@ -839,7 +837,7 @@ test('Should be possible to pass a request context', async (t) => {
   await dataSource.getFoo()
 })
 
-test.cb('Should abort request when abortController signal is called', (t) => {
+test('Should abort request when abortController signal is called', async (t) => {
   t.plan(2)
 
   const path = '/'
@@ -875,7 +873,7 @@ test.cb('Should abort request when abortController signal is called', (t) => {
     }
   })()
 
-  t.throwsAsync(
+  await Promise.all([t.throwsAsync(
     async () => {
       try {
         await dataSource.getFoo()
@@ -890,12 +888,12 @@ test.cb('Should abort request when abortController signal is called', (t) => {
       message: 'Request aborted',
     },
     'Timeout',
-  ).finally(t.end)
-
-  abortController.abort()
+  ),
+  abortController.abort(),
+  ])
 })
 
-test.cb('Should timeout because server does not respond fast enough', (t) => {
+test('Should timeout because server does not respond fast enough', async (t) => {
   t.plan(3)
 
   const path = '/'
@@ -932,7 +930,7 @@ test.cb('Should timeout because server does not respond fast enough', (t) => {
     }
   })()
 
-  t.throwsAsync(
+  await t.throwsAsync(
     async () => {
       try {
         await dataSource.getFoo()
@@ -947,7 +945,7 @@ test.cb('Should timeout because server does not respond fast enough', (t) => {
       message: 'Headers Timeout Error',
     },
     'Timeout',
-  ).finally(t.end)
+  )
 })
 
 test('Should be able to modify request in willSendRequest', async (t) => {
@@ -1770,13 +1768,13 @@ test('Should be able to decode gzip compression', async (t) => {
 
   const server = http.createServer((req, res) => {
     if (req.headers['accept-encoding'] === 'gzip') {
-      res.writeHead(200, { 
+      res.writeHead(200, {
         'content-encoding': 'gzip',
         'content-type': 'application/json'
       });
       const stream = Readable.from([JSON.stringify(wanted)]);
       stream.pipe(createGzip()).pipe(res);
-    } else{
+    } else {
       res.writeHead(200, {
         'content-type': 'application/json',
       })
@@ -1824,13 +1822,13 @@ test('Should be able to decode deflate compression', async (t) => {
 
   const server = http.createServer((req, res) => {
     if (req.headers['accept-encoding'] === 'deflate') {
-      res.writeHead(200, { 
+      res.writeHead(200, {
         'content-encoding': 'deflate',
         'content-type': 'application/json'
       });
       const stream = Readable.from([JSON.stringify(wanted)]);
       stream.pipe(createDeflate()).pipe(res);
-    } else{
+    } else {
       res.writeHead(200, {
         'content-type': 'application/json',
       })
@@ -1878,13 +1876,13 @@ test('Should be able to decode brotli compression', async (t) => {
 
   const server = http.createServer((req, res) => {
     if (req.headers['accept-encoding'] === 'br') {
-      res.writeHead(200, { 
+      res.writeHead(200, {
         'content-encoding': 'br',
         'content-type': 'application/json'
       });
       const stream = Readable.from([JSON.stringify(wanted)]);
       stream.pipe(createBrotliCompress()).pipe(res);
-    } else{
+    } else {
       res.writeHead(200, {
         'content-type': 'application/json',
       })
